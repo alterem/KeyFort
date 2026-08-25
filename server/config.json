@@ -1,0 +1,12 @@
+{
+  "defaultAccount": {
+    "name": "test",
+    "account": "test",
+    "issuer": "",
+    "secret": "RVDZUTVO7M7DSI77WH2CLW54GP56D5TO",
+    "digits": 6,
+    "period": 30,
+    "algorithm": "SHA1",
+    "notes": ""
+  }
+}
