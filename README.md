@@ -117,7 +117,7 @@ Vite 将 `/api` 请求代理到 API 服务。前端环境变量可以放在 `cli
 
 ## Docker 部署
 
-KeyFort 提供 GitHub Actions 镜像与版本发布流程，以及 Compose 运行配置。GitHub Actions 配置位于 [.github/workflows/docker.yml](.github/workflows/docker.yml)：推送到 `main` 时会更新 GHCR 镜像；创建 `v*.*.*` 版本标签时，会发布对应版本镜像并自动创建 GitHub Release 和 Release Notes。
+KeyFort 提供 GitHub Actions 镜像与版本发布流程，以及 Compose 运行配置。GitHub Actions 配置位于 [.github/workflows/docker.yml](.github/workflows/docker.yml)。工作流只接受 `v*.*.*` 版本标签触发；推送到 `main` 或其他分支不会构建镜像。版本镜像推送成功后会自动创建 GitHub Release 和 Release Notes。
 
 ```text
 ghcr.io/<github-owner>/keyfort:latest
