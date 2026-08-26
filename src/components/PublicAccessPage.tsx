@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, Copy, Globe2, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { listPublicAccounts, type AccountView } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 
 export function PublicAccessPage() {
   const [accounts, setAccounts] = useState<AccountView[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [copyError, setCopyError] = useState('')
 
   useEffect(() => {
     async function refresh() {
@@ -24,11 +26,12 @@ export function PublicAccessPage() {
   async function copyToken(account: AccountView) {
     if (!account.token) return
     try {
-      await navigator.clipboard.writeText(account.token)
+      await copyText(account.token)
+      setCopyError('')
       setCopiedId(account.id)
       window.setTimeout(() => setCopiedId(null), 1400)
-    } catch {
-      // Clipboard access requires a secure browser context.
+    } catch (reason) {
+      setCopyError(reason instanceof Error ? reason.message : '复制失败，请手动复制验证码')
     }
   }
 
@@ -64,6 +67,7 @@ export function PublicAccessPage() {
             })}
           </div>
         )}
+        {copyError && <div className="form-error public-copy-error" role="alert">{copyError}</div>}
         <p className="public-page-disclaimer">公开验证码由管理员主动开放，仅用于授权的访客、演示或协作场景。</p>
       </section>
     </main>

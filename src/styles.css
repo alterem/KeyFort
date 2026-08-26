@@ -272,6 +272,7 @@ input::placeholder, textarea::placeholder { color: #9da59f; }
 .public-page-empty { min-height: 180px; margin-top: 38px; border: 1px dashed #cbd8d1; border-radius: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: #819087; background: rgba(255,255,255,.5); font-size: 13px; }
 .public-page-empty strong { color: #526159; font-size: 14px; }
 .public-page-disclaimer { margin: 29px 0 0; color: #9aa39d; font-size: 11px; text-align: center; }
+.public-copy-error { width: fit-content; margin: 24px auto 0; }
 .modal-footer { position: sticky; bottom: 0; padding: 15px 24px; border-top: 1px solid #e5e9e7; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fafbfa; }
 .modal-actions { display: flex; gap: 9px; }
 .encrypted-hint { display: flex; align-items: center; gap: 6px; color: #7b847f; font-size: 11px; }

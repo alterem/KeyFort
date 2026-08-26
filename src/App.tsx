@@ -10,6 +10,7 @@ import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logou
 
 import { enterGuestMode, isGuestActive, leaveGuestMode, loadGuestAccounts, saveGuestAccounts, toGuestAccountView } from './lib/guest'
 import { normalizeSecret } from './lib/totp'
+import { copyText } from './lib/clipboard'
 import type { TotpAccount } from './types'
 
 type AuthMode = 'create' | 'unlock'
@@ -207,17 +208,12 @@ export default function App() {
   async function copyToken(account: AccountView) {
     if (!account.token) return
     try {
-      await navigator.clipboard.writeText(account.token)
-    } catch {
-      const input = document.createElement('textarea')
-      input.value = account.token
-      document.body.appendChild(input)
-      input.select()
-      document.execCommand('copy')
-      input.remove()
+      await copyText(account.token)
+      setCopiedId(account.id)
+      window.setTimeout(() => setCopiedId(null), 1600)
+    } catch (reason) {
+      showToast(reason instanceof Error ? reason.message : '复制失败，请手动复制验证码')
     }
-    setCopiedId(account.id)
-    window.setTimeout(() => setCopiedId(null), 1600)
   }
 
   async function exitWorkspace() {
