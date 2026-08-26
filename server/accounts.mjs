@@ -51,7 +51,7 @@ export function createAccountService({ db, encryptSecret, decryptSecret }) {
       SELECT DISTINCT accounts.* FROM accounts
       LEFT JOIN account_members ON account_members.account_id = accounts.id
       WHERE config_default = 0 AND deleted_at ${deleted ? 'IS NOT' : 'IS'} NULL
-        AND (? = 'admin' OR access_mode = 'all' OR account_members.user_id = ?)
+        AND (? = 'admin' OR access_mode = 'all' OR (access_mode = 'restricted' AND account_members.user_id = ?))
       ORDER BY pinned DESC, sort_order ASC, favorite DESC, name COLLATE NOCASE ASC
     `).all(user.role, user.id)
     return rows.map((row) => serialize(row, user.role === 'admin'))
@@ -61,6 +61,7 @@ export function createAccountService({ db, encryptSecret, decryptSecret }) {
     const settings = accountSettings({ ...current, ...body })
     const tags = Array.from(new Set((Array.isArray(body.tags) ? body.tags : parseJson(current.tags, [])).map((tag) => String(tag).trim()).filter(Boolean))).slice(0, 20)
     const accessMode = ['all', 'restricted', 'admin'].includes(body.accessMode) ? body.accessMode : (current.access_mode || 'all')
+    const requestedMembers = Array.isArray(body.memberIds) ? body.memberIds.map(String) : memberIds(current.id || '')
     return {
       name: String(body.name ?? current.name ?? '').trim(),
       account: String(body.account ?? current.account ?? '').trim(),
@@ -72,7 +73,9 @@ export function createAccountService({ db, encryptSecret, decryptSecret }) {
       sortOrder: Number(body.sortOrder ?? current.sort_order ?? 0),
       tags: JSON.stringify(tags),
       accessMode,
-      memberIds: Array.isArray(body.memberIds) ? body.memberIds.map(String) : memberIds(current.id || ''),
+      // Member rows only mean anything for 'restricted'. Keeping them for 'all' or 'admin'
+      // let list() hand out tokens that canAccess() would reject.
+      memberIds: accessMode === 'restricted' ? requestedMembers : [],
       ...settings,
     }
   }
@@ -122,8 +125,10 @@ export function createAccountService({ db, encryptSecret, decryptSecret }) {
     const allowed = new Map([['favorite', 'favorite'], ['publicAccess', 'public_access'], ['pinned', 'pinned'], ['sortOrder', 'sort_order']])
     const column = allowed.get(field)
     if (!column) throw new Error('Unsupported account field')
+    const numeric = field === 'sortOrder' ? Number(value) : Number(Boolean(value))
+    if (!Number.isFinite(numeric)) return null
     const result = db.prepare(`UPDATE accounts SET ${column} = ?, updated_at = ? WHERE id = ? AND config_default = 0 AND deleted_at IS NULL`)
-      .run(typeof value === 'boolean' ? Number(value) : Number(value), Date.now(), id)
+      .run(numeric, Date.now(), id)
     if (!result.changes) return null
     return serialize(get(id), true)
   }

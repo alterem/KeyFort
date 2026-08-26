@@ -91,6 +91,14 @@ export function openDatabase(dbPath) {
       created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS share_accesses (
+      id TEXT PRIMARY KEY,
+      share_id TEXT NOT NULL REFERENCES shares(id) ON DELETE CASCADE,
+      nonce_hash TEXT NOT NULL UNIQUE,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_share_accesses_nonce ON share_accesses(nonce_hash);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_accounts_deleted ON accounts(deleted_at);
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);

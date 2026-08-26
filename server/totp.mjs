@@ -31,6 +31,8 @@ export function validateAccount(body, requiresSecret = true) {
   return { secret }
 }
 
+const warnedAccounts = new Set()
+
 export function tokenForAccount(row, decryptSecret) {
   try {
     const totp = new OTPAuth.TOTP({
@@ -42,8 +44,15 @@ export function tokenForAccount(row, decryptSecret) {
       secret: OTPAuth.Secret.fromBase32(decryptSecret(row)),
     })
     const remaining = row.period - (Math.floor(Date.now() / 1000) % row.period)
+    warnedAccounts.delete(row.id)
     return { token: totp.generate(), remaining }
-  } catch {
+  } catch (error) {
+    // Usually a TOTP_ENCRYPTION_KEY mismatch. Warn once per account so the cause is
+    // visible instead of silently rendering an empty code forever.
+    if (!warnedAccounts.has(row.id)) {
+      warnedAccounts.add(row.id)
+      console.warn(`[KeyFort] 无法生成验证码 (account=${row.id}): ${error.message}。请确认 TOTP_ENCRYPTION_KEY 与数据库匹配。`)
+    }
     return { token: null, remaining: row.period }
   }
 }

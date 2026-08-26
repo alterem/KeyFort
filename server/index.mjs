@@ -122,13 +122,23 @@ app.use(cookieParser())
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: false }))
 app.use(security.csrfProtection)
-app.use((req, _res, next) => {
-  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(Date.now())
-  db.prepare('DELETE FROM accounts WHERE deleted_at IS NOT NULL AND deleted_at <= ?').run(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  next()
-})
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false, message: { message: '尝试次数过多，请稍后再试' } })
+function runCleanup() {
+  const now = Date.now()
+  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now)
+  db.prepare('DELETE FROM share_accesses WHERE expires_at <= ?').run(now)
+  db.prepare('DELETE FROM accounts WHERE deleted_at IS NOT NULL AND deleted_at <= ?').run(now - 30 * 24 * 60 * 60 * 1000)
+}
+
+// Runs on a timer instead of per request: the old middleware issued write
+// transactions for every HTTP call, including each static asset in production.
+runCleanup()
+const cleanupTimer = setInterval(runCleanup, 60 * 60 * 1000)
+cleanupTimer.unref?.()
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false, message: { message: '尝试次数过多，请稍后再试' } })
+// Separate bucket so re-authenticating for sensitive actions cannot lock out logins.
+const verifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false, message: { message: '验证次数过多，请稍后再试' } })
 const shareLimiter = rateLimit({ windowMs: 5 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false })
 
 app.get('/api/health', (_req, res) => {
@@ -181,7 +191,7 @@ app.post('/api/auth/logout', security.requireAuth, (req, res) => {
   res.status(204).end()
 })
 
-app.post('/api/auth/verify', security.requireAuth, authLimiter, async (req, res) => {
+app.post('/api/auth/verify', security.requireAuth, verifyLimiter, async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)
   if (!(await bcrypt.compare(String(req.body.password || ''), user.password_hash))) return res.status(401).json({ message: '密码错误' })
   db.prepare('UPDATE sessions SET verified_at = ? WHERE id = ?').run(Date.now(), req.sessionId)
@@ -245,8 +255,13 @@ app.post('/api/accounts', (req, res) => {
 
 app.post('/api/accounts/import', (req, res) => {
   if (!Array.isArray(req.body.accounts) || req.body.accounts.length > 200) return res.status(400).json({ message: '导入内容无效或超过 200 条' })
-  if (req.user.role !== 'admin' && req.body.accounts.some((item) => item.publicAccess || (item.accessMode && item.accessMode !== 'all') || item.memberIds?.length)) {
+  const requestsRestrictedAccess = req.body.accounts.some((item) => item.publicAccess || (item.accessMode && item.accessMode !== 'all') || item.memberIds?.length)
+  if (requestsRestrictedAccess && req.user.role !== 'admin') {
     return res.status(403).json({ message: '只有管理员可以导入公开或受限验证项' })
+  }
+  // Mirrors POST /api/accounts so import cannot be used to skip the password re-check.
+  if (requestsRestrictedAccess && Date.now() - Number(req.user.verified_at || 0) > 10 * 60 * 1000) {
+    return res.status(428).json({ message: '请重新验证密码后导入公开或受限验证项', reauthRequired: true })
   }
   const created = []
   const errors = []
@@ -292,7 +307,9 @@ for (const [route, field, adminOnly] of [['favorite', 'favorite', false], ['publ
   app.patch(`/api/accounts/:id/${route}`, ...(adminOnly ? [security.requireAdmin, security.requireRecentVerification] : []), (req, res) => {
     const current = accountOr404(req, res)
     if (!current) return
+    if (typeof req.body[field] !== 'boolean') return res.status(400).json({ message: '参数无效' })
     const account = accounts.setField(req.params.id, field, req.body[field])
+    if (!account) return res.status(404).json({ message: '验证项不存在' })
     audit.record(req, `account.${field}`, 'account', account, { value: req.body[field] })
     return res.json({ account })
   })
@@ -341,7 +358,10 @@ app.post('/api/team/members', async (req, res) => {
     const member = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
     audit.record(req, 'member.created', 'user', member)
     return res.status(201).json({ member: memberView(member) })
-  } catch { return res.status(409).json({ message: '该邮箱已经存在' }) }
+  } catch (error) {
+    if (String(error?.code || '').includes('CONSTRAINT')) return res.status(409).json({ message: '该邮箱已经存在' })
+    throw error
+  }
 })
 
 app.put('/api/team/members/:id/password', security.requireRecentVerification, async (req, res) => {
@@ -401,11 +421,23 @@ app.post('/api/admin/backup/import', security.requireAuth, security.requireAdmin
   } catch (error) { return res.status(400).json({ message: error.message }) }
 })
 
+// Must stay after every /api route: otherwise the SPA fallback answers unknown
+// API paths with 200 + index.html instead of a JSON 404.
+app.use('/api', (_req, res) => res.status(404).json({ message: '接口不存在' }))
+
 if (isProduction) {
   const distDir = path.join(rootDir, 'dist')
   app.use(express.static(distDir))
   app.get('/{*splat}', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
 }
+
+app.use((error, req, res, _next) => {
+  console.error(`[KeyFort] ${req.method} ${req.originalUrl}`, error)
+  if (res.headersSent) return
+  const status = Number(error?.status || error?.statusCode) || 500
+  const message = status < 500 && error?.expose ? error.message : '服务器内部错误，请稍后重试'
+  res.status(status).json({ message })
+})
 
 if (process.env.NODE_ENV !== 'test') app.listen(port, () => console.log(`KeyFort API listening on http://localhost:${port}`))
 

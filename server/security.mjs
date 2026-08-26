@@ -5,6 +5,7 @@ import path from 'node:path'
 export const sessionCookie = 'keyfort_session'
 export const csrfCookie = 'keyfort_csrf'
 const sessionDays = 7
+const sessionCacheKey = Symbol.for('keyfort.session')
 const devOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
 export function hashToken(token) {
@@ -52,6 +53,14 @@ export function createSecurity({ db, dataDir, isProduction }) {
   }
 
   function getSession(req) {
+    // csrfProtection and requireAuth both need the session; cache it per request.
+    if (sessionCacheKey in req) return req[sessionCacheKey]
+    const session = loadSession(req)
+    Object.defineProperty(req, sessionCacheKey, { value: session, configurable: true })
+    return session
+  }
+
+  function loadSession(req) {
     const token = req.cookies[sessionCookie]
     if (!token) return null
     return db.prepare(`

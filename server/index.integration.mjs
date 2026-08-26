@@ -127,6 +127,45 @@ test('password-protected shares refresh without consuming another view', async (
   assert.equal(shares.shares.find((share) => share.id === result.share.id).viewCount, 1)
 })
 
+test('downgrading to admin-only revokes member visibility', async () => {
+  await admin.call('/api/auth/verify', { method: 'POST', status: 204, body: { password: 'password123' } })
+  const memberId = (await admin.call('/api/team/members')).members.find((item) => item.email === 'member@example.com').id
+  const target = (await admin.call('/api/accounts', {
+    method: 'POST', status: 201,
+    body: accountPayload({ name: 'Downgrade', secret: 'JBSWY3DPEHPK3PXP', accessMode: 'restricted', memberIds: [memberId] }),
+  })).account
+  assert.equal((await member.call('/api/accounts')).accounts.some((item) => item.id === target.id), true)
+
+  await admin.call(`/api/accounts/${target.id}`, { method: 'PUT', body: accountPayload({ name: 'Downgrade', accessMode: 'admin', secret: undefined }) })
+  const visible = (await member.call('/api/accounts')).accounts
+  assert.equal(visible.some((item) => item.id === target.id), false, 'list() must agree with canAccess() for admin-only items')
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM account_members WHERE account_id = ?').get(target.id).count, 0)
+})
+
+test('import cannot skip the password re-check', async () => {
+  const payload = { accounts: [accountPayload({ name: 'Imported', secret: 'JBSWY3DPEHPK3PXP', accessMode: 'all', publicAccess: true })] }
+  db.prepare('UPDATE sessions SET verified_at = 0').run()
+  await admin.call('/api/accounts/import', { method: 'POST', status: 428, body: payload })
+  await admin.call('/api/auth/verify', { method: 'POST', status: 204, body: { password: 'password123' } })
+  const result = await admin.call('/api/accounts/import', { method: 'POST', status: 201, body: payload })
+  assert.equal(result.accounts.length, 1)
+})
+
+test('share refresh stops once the access window closes', async () => {
+  const anonymous = new Client()
+  const access = await anonymous.call(`/api/share/${shareToken}/access`, { method: 'POST', body: { password: 'sharepass' } })
+  const refreshed = await anonymous.call(`/api/share/${shareToken}/refresh`, { method: 'POST', body: { accessNonce: access.share.accessNonce } })
+  assert.ok(refreshed.account.token)
+  db.prepare('UPDATE share_accesses SET expires_at = ?').run(Date.now() - 1)
+  await anonymous.call(`/api/share/${shareToken}/refresh`, { method: 'POST', status: 401, body: { accessNonce: access.share.accessNonce } })
+})
+
+test('boolean toggles reject junk and unknown API routes return JSON', async () => {
+  await admin.call(`/api/accounts/${accountId}/favorite`, { method: 'PATCH', status: 400, body: {} })
+  const missing = await admin.call('/api/does-not-exist', { status: 404 })
+  assert.equal(missing.message, '接口不存在')
+})
+
 test('audit, encrypted backup and health', async () => {
   const backup = await admin.call('/api/admin/backup/export', { method: 'POST', body: { password: 'backup-pass-123' } })
   assert.equal(backup.backup.format, 'keyfort-backup')
