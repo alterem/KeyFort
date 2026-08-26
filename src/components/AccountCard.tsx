@@ -1,15 +1,43 @@
-import { Check, Copy, Ellipsis, Globe2, Pencil, Star, Trash2 } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
+import type { ReactNode } from 'react'
+import { Check, Copy, Ellipsis, Globe2, LockKeyhole, Pencil, Star, Trash2 } from 'lucide-react'
 import type { AccountView } from '../lib/api'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 
 interface AccountCardProps {
   account: AccountView
   copied: boolean
   onCopy: () => void
-  onEdit: () => void
-  onDelete: () => void
-  onFavorite: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+  onFavorite?: () => void
+  onPublicAccess?: () => void
   readOnly?: boolean
+}
+
+interface AccountActionsProps {
+  account: AccountView
+  Item: (props: { className?: string; onSelect?: () => void; children: ReactNode }) => ReactNode
+  onEdit?: () => void
+  onDelete?: () => void
+  onFavorite?: () => void
+  onPublicAccess?: () => void
+}
+
+function AccountActions({ account, Item, onEdit, onDelete, onFavorite, onPublicAccess }: AccountActionsProps) {
+  return (
+    <>
+      <Item onSelect={onFavorite}><Star size={16} />{account.favorite ? '取消收藏' : '添加收藏'}</Item>
+      <Item onSelect={onEdit}><Pencil size={16} />编辑</Item>
+      {onPublicAccess && (
+        <Item onSelect={onPublicAccess}>
+          {account.publicAccess ? <LockKeyhole size={16} /> : <Globe2 size={16} />}
+          {account.publicAccess ? '设置私有' : '设置公开'}
+        </Item>
+      )}
+      <Item className="danger-menu-item" onSelect={onDelete}><Trash2 size={16} />删除</Item>
+    </>
+  )
 }
 
 export function AccountCard({
@@ -19,6 +47,7 @@ export function AccountCard({
   onEdit,
   onDelete,
   onFavorite,
+  onPublicAccess,
   readOnly = false,
 }: AccountCardProps) {
   const token = account.token
@@ -27,7 +56,7 @@ export function AccountCard({
   const critical = remaining <= 5
   const initials = (account.name || account.issuer || '?').slice(0, 2).toUpperCase()
 
-  return (
+  const card = (
     <article
       className={`account-card ${critical ? 'countdown-critical-card' : ''}`}
       style={{ '--card-color': account.color, '--countdown-progress': `${progress * 100}%` } as React.CSSProperties}
@@ -41,25 +70,21 @@ export function AccountCard({
           </div>
           <p title={account.account || account.issuer}>{account.account || account.issuer || '未填写账号'}</p>
         </div>
-        <div className="card-actions">
-          <button className={`icon-button favorite-button ${account.favorite ? 'active' : ''}`} type="button" onClick={onFavorite} title={account.favorite ? '取消收藏' : '添加收藏'} aria-label={account.favorite ? '取消收藏' : '添加收藏'}>
-            <Star size={17} fill={account.favorite ? 'currentColor' : 'none'} />
-          </button>
-          <div className="card-menu-wrap">
-            {!readOnly && <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="icon-button" type="button" title="更多操作" aria-label="更多操作">
-                <Ellipsis size={20} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onFavorite}><Star size={16} />{account.favorite ? '取消收藏' : '添加收藏'}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={onEdit}><Pencil size={16} />编辑</DropdownMenuItem>
-              <DropdownMenuItem className="danger-menu-item" onSelect={onDelete}><Trash2 size={16} />删除</DropdownMenuItem>
-            </DropdownMenuContent>
-            </DropdownMenu>}
+        {!readOnly && (
+          <div className="card-actions">
+            <button className={`icon-button favorite-button ${account.favorite ? 'active' : ''}`} type="button" onClick={onFavorite} title={account.favorite ? '取消收藏' : '添加收藏'} aria-label={account.favorite ? '取消收藏' : '添加收藏'}>
+              <Star size={17} fill={account.favorite ? 'currentColor' : 'none'} />
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="icon-button" type="button" title="更多操作" aria-label="更多操作"><Ellipsis size={20} /></button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <AccountActions account={account} Item={DropdownMenuItem} onEdit={onEdit} onDelete={onDelete} onFavorite={onFavorite} onPublicAccess={onPublicAccess} />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </div>
+        )}
       </div>
 
       <button className="token-area" type="button" onClick={onCopy} disabled={!token} title="复制验证码">
@@ -71,10 +96,18 @@ export function AccountCard({
 
       <div className="account-card-foot">
         <span className="token-meta">{account.digits} 位 · {account.algorithm}</span>
-        <div className={`countdown ${critical ? 'countdown-critical' : ''}`} title={`${remaining} 秒后更新`}>
-          <span>{remaining}s</span>
-        </div>
+        <div className={`countdown ${critical ? 'countdown-critical' : ''}`} title={`${remaining} 秒后更新`}><span>{remaining}s</span></div>
       </div>
     </article>
+  )
+
+  if (readOnly) return card
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <AccountActions account={account} Item={ContextMenuItem} onEdit={onEdit} onDelete={onDelete} onFavorite={onFavorite} onPublicAccess={onPublicAccess} />
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }

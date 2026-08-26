@@ -372,7 +372,16 @@ app.put('/api/accounts/:id', requireAuth, (req, res) => {
 
 app.patch('/api/accounts/:id/favorite', requireAuth, (req, res) => {
   const favorite = req.body.favorite ? 1 : 0
-  const result = db.prepare('UPDATE accounts SET favorite = ?, updated_at = ? WHERE id = ?').run(favorite, Date.now(), req.params.id)
+  const result = db.prepare('UPDATE accounts SET favorite = ?, updated_at = ? WHERE id = ? AND config_default = 0').run(favorite, Date.now(), req.params.id)
+  if (!result.changes) return res.status(404).json({ message: '验证项不存在' })
+  return res.json({ account: serializeAccount(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id)) })
+})
+
+app.patch('/api/accounts/:id/public-access', requireAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: '只有管理员可以修改公开访问设置' })
+  const publicAccess = req.body.publicAccess ? 1 : 0
+  const result = db.prepare('UPDATE accounts SET public_access = ?, updated_at = ? WHERE id = ? AND config_default = 0')
+    .run(publicAccess, Date.now(), req.params.id)
   if (!result.changes) return res.status(404).json({ message: '验证项不存在' })
   return res.json({ account: serializeAccount(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id)) })
 })

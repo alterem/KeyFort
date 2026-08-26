@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
 import { createMember, deleteMember, listMembers, type Member } from '../lib/api'
 import { Button } from './ui/button'
+import { PageHeading } from './PageHeading'
 
 interface TeamPageProps {
   onToast: (message: string) => void
@@ -60,10 +61,13 @@ export function TeamPage({ onToast }: TeamPageProps) {
 
   return (
     <div className="team-page">
-      <div className="page-heading">
-        <div><span className="page-kicker">TEAM AUTHENTICATOR</span><h1>成员管理</h1><p>管理可以访问团队共享验证码的成员账号。</p></div>
-        <div className="security-pill"><Users size={16} />团队管理</div>
-      </div>
+      <PageHeading
+        kicker="TEAM AUTHENTICATOR"
+        title="成员管理"
+        description={`${members.length} 位成员 · 管理团队共享验证码的访问权限`}
+        statusIcon={<Users size={16} />}
+        statusLabel="团队管理"
+      />
 
       {error && <div className="form-error team-page-error" role="alert">{error}</div>}
 

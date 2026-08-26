@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Check, Copy, Globe2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Globe2, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { listPublicAccounts, type AccountView } from '../lib/api'
 import { copyText } from '../lib/clipboard'
+import { AccountCard } from './AccountCard'
+import { PageHeading } from './PageHeading'
 
 export function PublicAccessPage() {
   const [accounts, setAccounts] = useState<AccountView[]>([])
@@ -43,28 +45,33 @@ export function PublicAccessPage() {
       </header>
 
       <section className="public-page-content">
-        <div className="public-page-intro">
-          <span className="public-page-icon"><Globe2 size={24} /></span>
-          <span className="page-kicker">PUBLIC AUTHENTICATOR</span>
-          <h1>公开验证码</h1>
-          <p>无需登录即可查看管理员开放的实时验证码。</p>
-        </div>
+        <PageHeading
+          kicker="PUBLIC AUTHENTICATOR"
+          title="公开验证码"
+          description={`${accounts.length} 个账号 · 无需登录即可查看实时验证码`}
+          statusIcon={<Globe2 size={16} />}
+          statusLabel="公开访问"
+        />
 
-        {loading ? <div className="public-page-empty">正在加载公开验证项…</div> : accounts.length === 0 ? (
-          <div className="public-page-empty"><Globe2 size={24} /><strong>暂时没有公开验证项</strong><span>管理员开放账号后，会显示在这里。</span></div>
+        {loading ? (
+          <div className="empty-state public-page-state">正在加载公开验证项…</div>
+        ) : accounts.length === 0 ? (
+          <div className="empty-state public-page-state">
+            <div className="empty-icon"><Globe2 size={27} /></div>
+            <h2>暂时没有公开验证项</h2>
+            <p>管理员开放账号后，会显示在这里。</p>
+          </div>
         ) : (
-          <div className="public-token-grid">
-            {accounts.map((account) => {
-              const token = account.token
-              const midpoint = token ? Math.ceil(token.length / 2) : 0
-              return (
-                <button key={account.id} className="public-token-card" style={{ '--public-color': account.color } as React.CSSProperties} type="button" onClick={() => void copyToken(account)} disabled={!token}>
-                  <div className="public-token-head"><span className="public-account-mark" style={{ backgroundColor: account.color }}>{account.name.slice(0, 2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.account || account.issuer || '公开验证项'}</small></div><Globe2 size={16} /></div>
-                  <div className="public-token-value">{token ? `${token.slice(0, midpoint)} ${token.slice(midpoint)}` : '无效密钥'}</div>
-                  <div className="public-token-foot"><span>{account.digits} 位 · {account.algorithm}</span><span>{copiedId === account.id ? <><Check size={14} />已复制</> : <><Copy size={14} />复制验证码</>}</span></div>
-                </button>
-              )
-            })}
+          <div className="account-grid">
+            {accounts.map((account) => (
+              <AccountCard
+                key={account.id}
+                account={account}
+                copied={copiedId === account.id}
+                onCopy={() => void copyToken(account)}
+                readOnly
+              />
+            ))}
           </div>
         )}
         {copyError && <div className="form-error public-copy-error" role="alert">{copyError}</div>}

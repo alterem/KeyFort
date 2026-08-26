@@ -76,6 +76,13 @@ export function updateFavorite(id: string, favorite: boolean) {
   return request<{ account: AccountView }>(`/api/accounts/${id}/favorite`, { method: 'PATCH', body: JSON.stringify({ favorite }) })
 }
 
+export function updatePublicAccess(id: string, publicAccess: boolean) {
+  return request<{ account: AccountView }>(`/api/accounts/${id}/public-access`, {
+    method: 'PATCH',
+    body: JSON.stringify({ publicAccess }),
+  })
+}
+
 export function deleteAccount(id: string) {
   return request<void>(`/api/accounts/${id}`, { method: 'DELETE' })
 }

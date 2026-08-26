@@ -1,6 +1,7 @@
 import { HardDrive, Menu, Plus, Search, Settings2, ShieldCheck, X, FileKey, Star } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { AccountCard } from './AccountCard'
+import { PageHeading } from './PageHeading'
 import type { AccountView } from '../lib/api'
 
 type AccountFilter = 'all' | 'favorites'
@@ -39,11 +40,13 @@ interface AccountWorkspaceProps {
   isGuest: boolean
   serverError: string
   copiedId: string | null
+  canManagePublic: boolean
   onAdd: () => void
   onCopy: (account: AccountView) => void
   onEdit: (account: AccountView) => void
   onDelete: (account: AccountView) => void
   onFavorite: (account: AccountView) => void
+  onPublicAccess: (account: AccountView) => void
 }
 
 export function AccountWorkspace({
@@ -53,11 +56,13 @@ export function AccountWorkspace({
   isGuest,
   serverError,
   copiedId,
+  canManagePublic,
   onAdd,
   onCopy,
   onEdit,
   onDelete,
   onFavorite,
+  onPublicAccess,
 }: AccountWorkspaceProps) {
   const emptyIcon = search ? <Search size={27} /> : filter === 'favorites' ? <Star size={27} /> : <FileKey size={27} />
   const emptyTitle = search ? '没有匹配的验证项' : filter === 'favorites' ? '还没有收藏' : isGuest ? '本地保险库还是空的' : '共享保险库还是空的'
@@ -65,17 +70,14 @@ export function AccountWorkspace({
 
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <span className="page-kicker">{isGuest ? 'LOCAL AUTHENTICATOR' : 'TEAM AUTHENTICATOR'}</span>
-          <h1>{filter === 'favorites' ? '我的收藏' : isGuest ? '本地验证项' : '共享验证项'}</h1>
-          <p>{visibleAccounts.length} 个账号 · {isGuest ? '保存在当前浏览器' : '团队实时同步'}</p>
-        </div>
-        <div className={`security-pill ${isGuest ? 'local-pill' : ''}`}>
-          {isGuest ? <HardDrive size={16} /> : <ShieldCheck size={16} />}
-          {isGuest ? '本地试用' : '已连接'}
-        </div>
-      </div>
+      <PageHeading
+        kicker={isGuest ? 'LOCAL AUTHENTICATOR' : 'TEAM AUTHENTICATOR'}
+        title={filter === 'favorites' ? '我的收藏' : isGuest ? '本地验证项' : '共享验证项'}
+        description={`${visibleAccounts.length} 个账号 · ${isGuest ? '保存在当前浏览器' : '团队实时同步'}`}
+        statusIcon={isGuest ? <HardDrive size={16} /> : <ShieldCheck size={16} />}
+        statusLabel={isGuest ? '本地试用' : '已连接'}
+        statusClassName={isGuest ? 'local-pill' : ''}
+      />
 
       {isGuest && <div className="local-mode-notice"><HardDrive size={16} /><div><strong>本地试用模式</strong><span>数据和 Secret Key 保存在当前浏览器，请勿用于重要的正式凭证。</span></div></div>}
       {!isGuest && serverError && <div className="sync-warning"><Settings2 size={16} />{serverError}</div>}
@@ -91,6 +93,7 @@ export function AccountWorkspace({
               onEdit={() => onEdit(account)}
               onDelete={() => onDelete(account)}
               onFavorite={() => onFavorite(account)}
+              onPublicAccess={canManagePublic ? () => onPublicAccess(account) : undefined}
             />
           ))}
         </div>

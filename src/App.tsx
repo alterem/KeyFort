@@ -6,7 +6,7 @@ import { AuthScreen } from './components/AuthScreen'
 import { TeamPage } from './components/TeamPage'
 import { WorkspaceHeader, AccountWorkspace } from './components/WorkspaceContent'
 import { WorkspaceSidebar } from './components/WorkspaceSidebar'
-import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logout, setupAccount, updateAccount, updateFavorite, type AccountView, type User } from './lib/api'
+import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logout, setupAccount, updateAccount, updateFavorite, updatePublicAccess, type AccountView, type User } from './lib/api'
 
 import { enterGuestMode, isGuestActive, leaveGuestMode, loadGuestAccounts, saveGuestAccounts, toGuestAccountView } from './lib/guest'
 import { normalizeSecret } from './lib/totp'
@@ -205,6 +205,19 @@ export default function App() {
     }
   }
 
+  async function togglePublicAccess(account: AccountView) {
+    const publicAccess = !account.publicAccess
+    setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, publicAccess } : item))
+    try {
+      const result = await updatePublicAccess(account.id, publicAccess)
+      setAccounts((current) => current.map((item) => item.id === account.id ? result.account : item))
+      showToast(publicAccess ? '已设置为公开' : '已设置为私有')
+    } catch (reason) {
+      setAccounts((current) => current.map((item) => item.id === account.id ? account : item))
+      showToast(reason instanceof Error ? reason.message : '公开设置失败')
+    }
+  }
+
   async function copyToken(account: AccountView) {
     if (!account.token) return
     try {
@@ -279,11 +292,13 @@ export default function App() {
               isGuest={isGuest}
               serverError={serverError}
               copiedId={copiedId}
+              canManagePublic={!isGuest && user?.role === 'admin'}
               onAdd={() => setEditing(null)}
               onCopy={(account) => void copyToken(account)}
               onEdit={openEditor}
               onDelete={(account) => void removeAccount(account)}
               onFavorite={(account) => void toggleFavorite(account)}
+              onPublicAccess={(account) => void togglePublicAccess(account)}
             />
           )}
         </div>
