@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { copyText } from './clipboard'
+import { copyText, waitForFreshToken } from './clipboard'
 
 class MockElement {
   value = ''
@@ -27,6 +27,24 @@ function stubLegacyClipboard(result: boolean) {
 }
 
 afterEach(() => vi.unstubAllGlobals())
+
+describe('waitForFreshToken', () => {
+  it('returns the current token when it has enough time remaining', async () => {
+    const account = { token: '123456', remaining: 10 }
+    const refresh = vi.fn()
+    await expect(waitForFreshToken(account, refresh)).resolves.toBe(account)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('waits for the next period when the token is expiring', async () => {
+    vi.useFakeTimers()
+    const refresh = vi.fn().mockResolvedValue({ token: '654321', remaining: 30 })
+    const result = waitForFreshToken({ token: '123456', remaining: 2 }, refresh)
+    await vi.advanceTimersByTimeAsync(3000)
+    await expect(result).resolves.toMatchObject({ token: '654321' })
+    vi.useRealTimers()
+  })
+})
 
 describe('copyText', () => {
   it('uses the Clipboard API in a secure context', async () => {

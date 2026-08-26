@@ -1,14 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
-import { createMember, deleteMember, listMembers, type Member } from '../lib/api'
+import { KeyRound, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import { createMember, deleteMember, listMembers, resetMemberPassword, type Member } from '../lib/api'
 import { Button } from './ui/button'
 import { PageHeading } from './PageHeading'
+import { ResetPasswordDialog } from './ResetPasswordDialog'
 
 interface TeamPageProps {
   onToast: (message: string) => void
+  onReauth: <T>(action: () => Promise<T>) => Promise<T | undefined>
 }
 
-export function TeamPage({ onToast }: TeamPageProps) {
+export function TeamPage({ onToast, onReauth }: TeamPageProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -16,6 +18,7 @@ export function TeamPage({ onToast }: TeamPageProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [resettingMember, setResettingMember] = useState<Member | null>(null)
 
   async function refresh() {
     try {
@@ -48,15 +51,18 @@ export function TeamPage({ onToast }: TeamPageProps) {
     }
   }
 
+  async function resetPassword(member: Member, password: string) {
+    await onReauth(() => resetMemberPassword(member.id, password))
+    onToast('临时密码已更新，该成员的所有设备已退出')
+  }
+
   async function remove(member: Member) {
     if (!window.confirm(`确定移除成员“${member.name}”吗？`)) return
     try {
-      await deleteMember(member.id)
+      await onReauth(() => deleteMember(member.id))
       await refresh()
       onToast('成员已移除')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '移除成员失败')
-    }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '移除成员失败') }
   }
 
   return (
@@ -79,7 +85,7 @@ export function TeamPage({ onToast }: TeamPageProps) {
               <span className="member-avatar">{member.name.slice(0, 1).toUpperCase()}</span>
               <div className="member-main"><strong>{member.name}</strong><small>{member.email}</small></div>
               <span className={`member-role ${member.role === 'admin' ? 'member-role-admin' : ''}`}>{member.role === 'admin' ? '管理员' : '成员'}</span>
-              {member.role !== 'admin' && <button className="icon-button member-remove" type="button" onClick={() => void remove(member)} title="移除成员" aria-label={`移除 ${member.name}`}><Trash2 size={15} /></button>}
+              {member.role !== 'admin' && <div className="member-actions"><button className="icon-button" type="button" onClick={() => setResettingMember(member)} title="重置密码" aria-label={`重置 ${member.name} 的密码`}><KeyRound size={15} /></button><button className="icon-button member-remove" type="button" onClick={() => void remove(member)} title="移除成员" aria-label={`移除 ${member.name}`}><Trash2 size={15} /></button></div>}
             </div>
           ))}
         </div>
@@ -95,6 +101,7 @@ export function TeamPage({ onToast }: TeamPageProps) {
         </form>
         <div className="member-security-note"><ShieldCheck size={14} />密码经过 bcrypt 哈希处理，服务端不会保存明文密码。</div>
       </section>
+      {resettingMember && <ResetPasswordDialog member={resettingMember} onClose={() => setResettingMember(null)} onSubmit={(password) => resetPassword(resettingMember, password)} />}
     </div>
   )
 }

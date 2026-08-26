@@ -1,5 +1,5 @@
-import { Globe2, HardDrive, LayoutGrid, LogOut, ShieldCheck, Star, Users, X } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { Activity, Globe2, HardDrive, LayoutGrid, Link2, LockKeyhole, LogOut, ShieldCheck, Star, Trash2, Users, WandSparkles, X } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
 import type { User } from '../lib/api'
 
 interface WorkspaceSidebarProps {
@@ -7,12 +7,14 @@ interface WorkspaceSidebarProps {
   user: User | null
   accountCount: number
   favoriteCount: number
+  tags: string[]
   open: boolean
   onClose: () => void
   onExit: () => void
 }
 
-export function WorkspaceSidebar({ isGuest, user, accountCount, favoriteCount, open, onClose, onExit }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ isGuest, user, accountCount, favoriteCount, tags, open, onClose, onExit }: WorkspaceSidebarProps) {
+  const location = useLocation()
   const navClass = ({ isActive }: { isActive: boolean }) => isActive ? 'active' : ''
   const closeOnNavigate = () => onClose()
 
@@ -28,13 +30,24 @@ export function WorkspaceSidebar({ isGuest, user, accountCount, favoriteCount, o
         <NavLink className={navClass} to="/accounts" onClick={closeOnNavigate}><LayoutGrid size={18} /><span>全部验证项</span><b>{accountCount}</b></NavLink>
         <NavLink className={navClass} to="/favorites" onClick={closeOnNavigate}><Star size={18} /><span>收藏</span><b>{favoriteCount}</b></NavLink>
         <NavLink className={navClass} to="/public" onClick={closeOnNavigate}><Globe2 size={18} /><span>公开验证码</span></NavLink>
-        {!isGuest && user?.role === 'admin' && (
-          <NavLink className={navClass} to="/team" onClick={closeOnNavigate}>
-            <Users size={18} />
-            <span>成员管理</span>
-          </NavLink>
-        )}
+        <NavLink className={navClass} to="/generator" onClick={closeOnNavigate}><WandSparkles size={18} /><span>密码生成器</span></NavLink>
       </nav>
+
+      {tags.length > 0 && <nav className="sidebar-nav sidebar-tags" aria-label="标签筛选">
+        <span className="nav-label">标签</span>
+        {tags.slice(0, 8).map((tag) => <NavLink className={() => location.pathname === '/accounts' && new URLSearchParams(location.search).get('tag') === tag ? 'active' : ''} key={tag} to={`/accounts?tag=${encodeURIComponent(tag)}`} onClick={closeOnNavigate}><span className="tag-dot" /><span>{tag}</span></NavLink>)}
+      </nav>}
+
+      {!isGuest && <nav className="sidebar-nav sidebar-management" aria-label="管理导航">
+        <span className="nav-label">管理</span>
+        <NavLink className={navClass} to="/security" onClick={closeOnNavigate}><LockKeyhole size={18} /><span>安全中心</span></NavLink>
+        {user?.role === 'admin' && <>
+          <NavLink className={navClass} to="/team" onClick={closeOnNavigate}><Users size={18} /><span>成员管理</span></NavLink>
+          <NavLink className={navClass} to="/shares" onClick={closeOnNavigate}><Link2 size={18} /><span>分享管理</span></NavLink>
+          <NavLink className={navClass} to="/audit" onClick={closeOnNavigate}><Activity size={18} /><span>操作审计</span></NavLink>
+          <NavLink className={navClass} to="/trash" onClick={closeOnNavigate}><Trash2 size={18} /><span>回收站</span></NavLink>
+        </>}
+      </nav>}
 
       <div className="sidebar-footer">
         <div className="vault-status">

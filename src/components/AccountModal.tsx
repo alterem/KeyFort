@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Eye, EyeOff, Globe2, KeyRound } from 'lucide-react'
 import { normalizeSecret, parseOtpUri } from '../lib/totp'
+import { listMembers, type Member } from '../lib/api'
 import type { Algorithm, TokenDigits, TokenPeriod, TotpAccount } from '../types'
 import { Button } from './ui/button'
 import { Dialog, DialogContent } from './ui/dialog'
@@ -38,6 +39,11 @@ function makeAccount(): TotpAccount {
     notes: '',
     favorite: false,
     publicAccess: false,
+    tags: [],
+    accessMode: 'all',
+    memberIds: [],
+    pinned: false,
+    sortOrder: 0,
     color: randomColor(),
     createdAt: now,
     updatedAt: now,
@@ -48,6 +54,11 @@ export function AccountModal({ account, onClose, onSave, allowPublic = false, lo
   const [draft, setDraft] = useState<TotpAccount>(() => account ? { ...account, publicAccess: account.publicAccess ?? false } : makeAccount())
   const [showSecret, setShowSecret] = useState(false)
   const [error, setError] = useState('')
+  const [members, setMembers] = useState<Member[]>([])
+
+  useEffect(() => {
+    if (allowPublic) void listMembers().then((result) => setMembers(result.members)).catch(() => undefined)
+  }, [allowPublic])
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -160,6 +171,31 @@ export function AccountModal({ account, onClose, onSave, allowPublic = false, lo
                 </select>
               </div>
             </div>
+
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="account-tags">标签</label>
+                <input id="account-tags" value={(draft.tags || []).join(', ')} onChange={(event) => update('tags', event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean))} placeholder="生产, GitHub, 客户 A" />
+              </div>
+              <div className="form-field">
+                <label htmlFor="account-pinned">排序</label>
+                <select id="account-pinned" value={draft.pinned ? 'pinned' : 'normal'} onChange={(event) => update('pinned', event.target.value === 'pinned')}>
+                  <option value="normal">普通排序</option><option value="pinned">置顶显示</option>
+                </select>
+              </div>
+            </div>
+
+            {allowPublic && <div className="access-control-panel">
+              <div className="form-field">
+                <label htmlFor="account-access-mode">成员访问权限</label>
+                <select id="account-access-mode" value={draft.accessMode || 'all'} onChange={(event) => update('accessMode', event.target.value as TotpAccount['accessMode'])}>
+                  <option value="all">所有团队成员</option><option value="restricted">指定成员</option><option value="admin">仅管理员</option>
+                </select>
+              </div>
+              {(draft.accessMode || 'all') === 'restricted' && <div className="member-checkboxes">
+                {members.filter((member) => member.role !== 'admin').map((member) => <label key={member.id}><input type="checkbox" checked={(draft.memberIds || []).includes(member.id)} onChange={(event) => update('memberIds', event.target.checked ? [...(draft.memberIds || []), member.id] : (draft.memberIds || []).filter((id) => id !== member.id))} /><span>{member.name}<small>{member.email}</small></span></label>)}
+              </div>}
+            </div>}
 
             <div className="form-field">
               <label>标记颜色</label>

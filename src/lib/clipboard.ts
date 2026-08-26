@@ -35,6 +35,15 @@ function legacyCopy(text: string): boolean {
   return copied
 }
 
+export async function waitForFreshToken<T extends { token: string | null; remaining: number }>(
+  account: T,
+  refresh: () => Promise<T>,
+): Promise<T> {
+  if (account.remaining > 5) return account
+  await new Promise((resolve) => setTimeout(resolve, (account.remaining + 1) * 1000))
+  return refresh()
+}
+
 export async function copyText(text: string): Promise<void> {
   if (!text) throw new Error('没有可复制的内容')
 

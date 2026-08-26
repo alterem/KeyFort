@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Globe2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Globe2, ShieldCheck, WandSparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { listPublicAccounts, type AccountView } from '../lib/api'
-import { copyText } from '../lib/clipboard'
+import { copyText, waitForFreshToken } from '../lib/clipboard'
 import { AccountCard } from './AccountCard'
 import { PageHeading } from './PageHeading'
 
@@ -28,7 +28,12 @@ export function PublicAccessPage() {
   async function copyToken(account: AccountView) {
     if (!account.token) return
     try {
-      await copyText(account.token)
+      const fresh = await waitForFreshToken(account, async () => {
+        const result = await listPublicAccounts()
+        return result.accounts.find((item) => item.id === account.id) || account
+      })
+      if (!fresh.token) throw new Error('验证码暂时不可用')
+      await copyText(fresh.token)
       setCopyError('')
       setCopiedId(account.id)
       window.setTimeout(() => setCopiedId(null), 1400)
@@ -41,7 +46,7 @@ export function PublicAccessPage() {
     <main className="public-page">
       <header className="public-page-header">
         <Link className="brand-lockup" to="/"><span className="brand-mark"><ShieldCheck size={21} /></span><span>KeyFort</span></Link>
-        <Link className="public-login-link" to="/"><ArrowLeft size={15} />团队登录</Link>
+        <nav className="public-header-nav" aria-label="公共工具导航"><Link to="/generator"><WandSparkles size={15} />密码生成器</Link><Link className="public-login-link" to="/"><ArrowLeft size={15} />团队登录</Link></nav>
       </header>
 
       <section className="public-page-content">

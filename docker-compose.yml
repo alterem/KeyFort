@@ -11,6 +11,7 @@ services:
       DATABASE_PATH: /app/data/keyfort.db
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?Set TOTP_ENCRYPTION_KEY in .env before starting KeyFort}
       DEFAULT_TOTP_SECRET: ${DEFAULT_TOTP_SECRET:-}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
     volumes:
       - keyfort-data:/app/data
     healthcheck:
@@ -19,7 +20,7 @@ services:
         - node
         - -e
         - >-
-          fetch('http://127.0.0.1:3001/api/auth/status')
+          fetch('http://127.0.0.1:3001/api/health')
           .then((response) => process.exit(response.ok ? 0 : 1))
           .catch(() => process.exit(1))
       interval: 30s

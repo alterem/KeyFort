@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Check, Copy, Ellipsis, Globe2, LockKeyhole, Pencil, Star, Trash2 } from 'lucide-react'
+import { Check, Copy, Ellipsis, Globe2, Link2, LockKeyhole, Pin, PinOff, Pencil, Star, Trash2 } from 'lucide-react'
 import type { AccountView } from '../lib/api'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
@@ -12,6 +12,12 @@ interface AccountCardProps {
   onDelete?: () => void
   onFavorite?: () => void
   onPublicAccess?: () => void
+  onPinned?: () => void
+  onShare?: () => void
+  draggable?: boolean
+  onDragStart?: () => void
+  onDragOver?: React.DragEventHandler<HTMLElement>
+  onDrop?: () => void
   readOnly?: boolean
 }
 
@@ -22,13 +28,17 @@ interface AccountActionsProps {
   onDelete?: () => void
   onFavorite?: () => void
   onPublicAccess?: () => void
+  onPinned?: () => void
+  onShare?: () => void
 }
 
-function AccountActions({ account, Item, onEdit, onDelete, onFavorite, onPublicAccess }: AccountActionsProps) {
+function AccountActions({ account, Item, onEdit, onDelete, onFavorite, onPublicAccess, onPinned, onShare }: AccountActionsProps) {
   return (
     <>
       <Item onSelect={onFavorite}><Star size={16} />{account.favorite ? '取消收藏' : '添加收藏'}</Item>
       <Item onSelect={onEdit}><Pencil size={16} />编辑</Item>
+      {onPinned && <Item onSelect={onPinned}>{account.pinned ? <PinOff size={16} /> : <Pin size={16} />}{account.pinned ? '取消置顶' : '置顶'}</Item>}
+      {onShare && <Item onSelect={onShare}><Link2 size={16} />创建分享链接</Item>}
       {onPublicAccess && (
         <Item onSelect={onPublicAccess}>
           {account.publicAccess ? <LockKeyhole size={16} /> : <Globe2 size={16} />}
@@ -48,6 +58,12 @@ export function AccountCard({
   onDelete,
   onFavorite,
   onPublicAccess,
+  onPinned,
+  onShare,
+  draggable = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
   readOnly = false,
 }: AccountCardProps) {
   const token = account.token
@@ -59,6 +75,10 @@ export function AccountCard({
   const card = (
     <article
       className={`account-card ${critical ? 'countdown-critical-card' : ''}`}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       style={{ '--card-color': account.color, '--countdown-progress': `${progress * 100}%` } as React.CSSProperties}
     >
       <div className="account-card-head">
@@ -80,7 +100,7 @@ export function AccountCard({
                 <button className="icon-button" type="button" title="更多操作" aria-label="更多操作"><Ellipsis size={20} /></button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <AccountActions account={account} Item={DropdownMenuItem} onEdit={onEdit} onDelete={onDelete} onFavorite={onFavorite} onPublicAccess={onPublicAccess} />
+                <AccountActions account={account} Item={DropdownMenuItem} onEdit={onEdit} onDelete={onDelete} onFavorite={onFavorite} onPublicAccess={onPublicAccess} onPinned={onPinned} onShare={onShare} />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -106,7 +126,7 @@ export function AccountCard({
     <ContextMenu>
       <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
       <ContextMenuContent>
-        <AccountActions account={account} Item={ContextMenuItem} onEdit={onEdit} onDelete={onDelete} onFavorite={onFavorite} onPublicAccess={onPublicAccess} />
+        <AccountActions account={account} Item={ContextMenuItem} onEdit={onEdit} onDelete={onDelete} onFavorite={onFavorite} onPublicAccess={onPublicAccess} onPinned={onPinned} onShare={onShare} />
       </ContextMenuContent>
     </ContextMenu>
   )

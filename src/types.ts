@@ -14,6 +14,11 @@ export interface TotpAccount {
   notes: string
   favorite: boolean
   publicAccess: boolean
+  tags?: string[]
+  accessMode?: 'all' | 'restricted' | 'admin'
+  memberIds?: string[]
+  pinned?: boolean
+  sortOrder?: number
   color: string
   createdAt: number
   updatedAt: number

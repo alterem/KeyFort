@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Eye, EyeOff, Globe2, HardDrive, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Globe2, HardDrive, KeyRound, LockKeyhole, ShieldCheck, WandSparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from './ui/button'
 
@@ -111,7 +111,7 @@ export function AuthScreen({ mode, onSubmit, onTryGuest, serverError }: AuthScre
           </Button>
           <p className="guest-hint">试用数据只保存在当前浏览器，不会同步到团队。</p>
           <p className="auth-footnote">团队 TOTP 密钥由服务端加密存储</p>
-          <Link className="public-link" to="/public"><Globe2 size={14} />查看公开验证码</Link>
+          <div className="public-links"><Link className="public-link" to="/public"><Globe2 size={14} />查看公开验证码</Link><Link className="public-link" to="/generator"><WandSparkles size={14} />生成安全密码</Link></div>
         </form>
       </section>
     </main>
