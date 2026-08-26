@@ -1,25 +1,11 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ArchiveRestore,
-  FileKey,
-  Globe2,
-  HardDrive,
-  LayoutGrid,
-  LogOut,
-  Menu,
-  Plus,
-  Search,
-  Settings2,
-  ShieldCheck,
-  Star,
-  Users,
-  X,
-} from 'lucide-react'
-import { AccountCard } from './components/AccountCard'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ArchiveRestore, ShieldCheck } from 'lucide-react'
 import { AccountModal } from './components/AccountModal'
 import { AuthScreen } from './components/AuthScreen'
 import { TeamPage } from './components/TeamPage'
+import { WorkspaceHeader, AccountWorkspace } from './components/WorkspaceContent'
+import { WorkspaceSidebar } from './components/WorkspaceSidebar'
 import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logout, setupAccount, updateAccount, updateFavorite, type AccountView, type User } from './lib/api'
 
 import { enterGuestMode, isGuestActive, leaveGuestMode, loadGuestAccounts, saveGuestAccounts, toGuestAccountView } from './lib/guest'
@@ -73,7 +59,12 @@ export default function App() {
 
   useEffect(() => {
     if (loading) return
-    const dashboardPath = location.pathname === '/accounts' || location.pathname === '/favorites' || (location.pathname === '/team' && workspaceMode === 'team' && user?.role === 'admin')
+    const dashboardPath = [
+      '/accounts',
+      '/favorites',
+    ].includes(location.pathname) || (
+      location.pathname === '/team' && workspaceMode === 'team' && user?.role === 'admin'
+    )
     if (!workspaceMode && location.pathname !== '/') navigate('/', { replace: true })
     if (workspaceMode && !dashboardPath) navigate('/accounts', { replace: true })
   }, [loading, location.pathname, navigate, user?.role, workspaceMode])
@@ -263,48 +254,54 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
-        <div className="sidebar-head">
-          <div className="brand-lockup"><span className="brand-mark"><ShieldCheck size={21} strokeWidth={2.2} /></span><span>KeyFort</span></div>
-          <button className="icon-button sidebar-close" type="button" onClick={() => setSidebarOpen(false)} title="关闭菜单" aria-label="关闭菜单"><X size={20} /></button>
-        </div>
-
-        <nav className="sidebar-nav" aria-label="主导航">
-          <span className="nav-label">{isGuest ? '本地保险库' : '共享保险库'}</span>
-          <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/accounts" onClick={() => setSidebarOpen(false)}><LayoutGrid size={18} /><span>全部验证项</span><b>{accounts.length}</b></NavLink>
-          <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/favorites" onClick={() => setSidebarOpen(false)}><Star size={18} /><span>收藏</span><b>{favoriteCount}</b></NavLink>
-          <NavLink to="/public" onClick={() => setSidebarOpen(false)}><Globe2 size={18} /><span>公开验证码</span></NavLink>
-          {!isGuest && user?.role === 'admin' && <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/team" onClick={() => setSidebarOpen(false)}><Users size={18} /><span>成员管理</span></NavLink>}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="vault-status"><span>{isGuest ? <HardDrive size={16} /> : <Users size={16} />}</span><div><strong>{isGuest ? '本地试用' : user?.name}</strong><small>{isGuest ? '仅此浏览器' : user?.role === 'admin' ? '管理员' : '团队成员'}</small></div></div>
-          <button className="icon-button" type="button" onClick={() => void exitWorkspace()} title={isGuest ? '退出试用' : '退出登录'} aria-label={isGuest ? '退出试用' : '退出登录'}><LogOut size={18} /></button>
-        </div>
-      </aside>
+      <WorkspaceSidebar
+        isGuest={isGuest}
+        user={user}
+        accountCount={accounts.length}
+        favoriteCount={favoriteCount}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onExit={() => void exitWorkspace()}
+      />
       {sidebarOpen && <div className="sidebar-scrim" onClick={() => setSidebarOpen(false)} />}
 
       <main className="workspace">
-        <header className="workspace-header">
-          <div className="mobile-title"><button className="icon-button" type="button" onClick={() => setSidebarOpen(true)} title="打开菜单" aria-label="打开菜单"><Menu size={21} /></button><div className="brand-lockup"><span className="brand-mark"><ShieldCheck size={19} /></span><span>KeyFort</span></div></div>
-          {!isTeamPage && <><div className="search-box"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索名称、账号或备注" aria-label="搜索验证项" />{search && <button className="icon-button" type="button" onClick={() => setSearch('')} title="清除搜索" aria-label="清除搜索"><X size={16} /></button>}</div>
-          <button className="primary-button add-button" type="button" onClick={() => setEditing(null)}><Plus size={18} />添加验证项</button></>}
-        </header>
+        <WorkspaceHeader
+          isTeamPage={isTeamPage}
+          search={search}
+          setSearch={setSearch}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onAdd={() => setEditing(null)}
+        />
 
         <div className="workspace-content">
-          {isTeamPage ? <TeamPage onToast={showToast} /> : <>
-          <div className="page-heading"><div><span className="page-kicker">{isGuest ? 'LOCAL AUTHENTICATOR' : 'TEAM AUTHENTICATOR'}</span><h1>{filter === 'favorites' ? '我的收藏' : isGuest ? '本地验证项' : '共享验证项'}</h1><p>{visibleAccounts.length} 个账号 · {isGuest ? '保存在当前浏览器' : '团队实时同步'}</p></div><div className={`security-pill ${isGuest ? 'local-pill' : ''}`}>{isGuest ? <HardDrive size={16} /> : <ShieldCheck size={16} />}{isGuest ? '本地试用' : '已连接'}</div></div>
-          {isGuest && <div className="local-mode-notice"><HardDrive size={16} /><div><strong>本地试用模式</strong><span>数据和 Secret Key 保存在当前浏览器，请勿用于重要的正式凭证。</span></div></div>}
-          {!isGuest && serverError && <div className="sync-warning"><Settings2 size={16} />{serverError}</div>}
-
-          {visibleAccounts.length > 0 ? <div className="account-grid">{visibleAccounts.map((account) => <AccountCard key={account.id} account={account} copied={copiedId === account.id} onCopy={() => void copyToken(account)} onEdit={() => openEditor(account)} onDelete={() => void removeAccount(account)} onFavorite={() => void toggleFavorite(account)} />)}</div> : (
-            <div className="empty-state"><div className="empty-icon">{search ? <Search size={27} /> : filter === 'favorites' ? <Star size={27} /> : <FileKey size={27} />}</div><h2>{search ? '没有匹配的验证项' : filter === 'favorites' ? '还没有收藏' : isGuest ? '本地保险库还是空的' : '共享保险库还是空的'}</h2><p>{search ? '尝试搜索其他名称、账号或备注' : filter === 'favorites' ? '在验证项菜单中添加收藏' : '添加第一个验证项开始使用'}</p>{!search && filter === 'all' && <button className="primary-button" type="button" onClick={() => setEditing(null)}><Plus size={18} />添加验证项</button>}</div>
+          {isTeamPage ? <TeamPage onToast={showToast} /> : (
+            <AccountWorkspace
+              visibleAccounts={visibleAccounts}
+              filter={filter}
+              search={search}
+              isGuest={isGuest}
+              serverError={serverError}
+              copiedId={copiedId}
+              onAdd={() => setEditing(null)}
+              onCopy={(account) => void copyToken(account)}
+              onEdit={openEditor}
+              onDelete={(account) => void removeAccount(account)}
+              onFavorite={(account) => void toggleFavorite(account)}
+            />
           )}
-          </>}
         </div>
       </main>
 
-      {editing !== undefined && <AccountModal account={editing} onClose={() => setEditing(undefined)} onSave={saveAccount} allowPublic={!isGuest && user?.role === 'admin'} localMode={isGuest} />}
+      {editing !== undefined && (
+        <AccountModal
+          account={editing}
+          onClose={() => setEditing(undefined)}
+          onSave={saveAccount}
+          allowPublic={!isGuest && user?.role === 'admin'}
+          localMode={isGuest}
+        />
+      )}
       {toast && <div className="toast" role="status"><ArchiveRestore size={17} />{toast}</div>}
     </div>
   )

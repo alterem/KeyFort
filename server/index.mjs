@@ -16,6 +16,9 @@ const port = Number(process.env.PORT || 3001)
 const isProduction = process.env.NODE_ENV === 'production'
 const sessionCookie = 'keyfort_session'
 const sessionDays = 7
+const allowedDigits = [6, 7, 8]
+const allowedPeriods = [30, 60]
+const allowedAlgorithms = ['SHA1', 'SHA256', 'SHA512']
 const serverConfigPath = path.join(__dirname, 'config.json')
 const serverConfig = fs.existsSync(serverConfigPath) ? JSON.parse(fs.readFileSync(serverConfigPath, 'utf8')) : {}
 
@@ -198,6 +201,15 @@ function getConfiguredDefaultAccount() {
   return { source, secret }
 }
 
+function accountSettings(source = {}) {
+  return {
+    digits: allowedDigits.includes(Number(source.digits)) ? Number(source.digits) : 6,
+    period: allowedPeriods.includes(Number(source.period)) ? Number(source.period) : 30,
+    algorithm: allowedAlgorithms.includes(source.algorithm) ? source.algorithm : 'SHA1',
+    color: source.color || '#287a5d',
+  }
+}
+
 function markLegacyConfiguredAccount() {
   const configured = getConfiguredDefaultAccount()
   if (!configured) return
@@ -217,6 +229,7 @@ function getPublicAccounts() {
   const accounts = db.prepare('SELECT * FROM accounts WHERE public_access = 1 ORDER BY name COLLATE NOCASE ASC').all()
   const configured = getConfiguredDefaultAccount()
   if (!configured || db.prepare('SELECT COUNT(*) AS count FROM accounts WHERE config_default = 1').get().count > 0) return accounts
+  const settings = accountSettings(configured.source)
   const now = Date.now()
   const encrypted = encryptSecret(configured.secret)
   return [{
@@ -226,14 +239,11 @@ function getPublicAccounts() {
     issuer: configured.source.issuer || '',
     secret_ciphertext: encrypted.ciphertext,
     secret_iv: encrypted.iv,
-    digits: [6, 7, 8].includes(configured.source.digits) ? configured.source.digits : 6,
-    period: [30, 60].includes(configured.source.period) ? configured.source.period : 30,
-    algorithm: ['SHA1', 'SHA256', 'SHA512'].includes(configured.source.algorithm) ? configured.source.algorithm : 'SHA1',
+    ...settings,
     notes: configured.source.notes || '',
     favorite: 0,
     public_access: 1,
     config_default: 1,
-    color: configured.source.color || '#287a5d',
     created_at: now,
     updated_at: now,
   }, ...accounts]
@@ -246,21 +256,22 @@ function seedDefaultAccount() {
   if (!configured) return
   const { source, secret } = configured
   const now = Date.now()
-  const encrypted = encryptSecret(secret)
+  const encrypted = encryptSecret(configured.secret)
+  const settings = accountSettings(source)
   db.prepare(`INSERT INTO accounts
     (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, public_access, config_default, color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(crypto.randomUUID(), source.name || '默认账号', source.account || '', source.issuer || '', encrypted.ciphertext, encrypted.iv,
-      [6, 7, 8].includes(source.digits) ? source.digits : 6, [30, 60].includes(source.period) ? source.period : 30,
-      ['SHA1', 'SHA256', 'SHA512'].includes(source.algorithm) ? source.algorithm : 'SHA1', source.notes || '', source.favorite ? 1 : 0, 1, 1, source.color || '#287a5d', now, now)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    crypto.randomUUID(), source.name || '默认账号', source.account || '', source.issuer || '', encrypted.ciphertext, encrypted.iv,
+    settings.digits, settings.period, settings.algorithm, source.notes || '', source.favorite ? 1 : 0, 1, 1, settings.color, now, now,
+  )
 }
 function validateAccount(body, requiresSecret = true) {
   const secret = normalizeSecret(body.secret)
   if (!String(body.name || '').trim()) return { error: '请填写验证项名称' }
   if (requiresSecret && !validSecret(secret)) return { error: '请输入有效的 Base32 Secret Key' }
-  if (body.digits !== undefined && ![6, 7, 8].includes(Number(body.digits))) return { error: '验证码位数无效' }
-  if (body.period !== undefined && ![30, 60].includes(Number(body.period))) return { error: '验证码周期无效' }
-  if (body.algorithm !== undefined && !['SHA1', 'SHA256', 'SHA512'].includes(body.algorithm)) return { error: '验证码算法无效' }
+  if (body.digits !== undefined && !allowedDigits.includes(Number(body.digits))) return { error: '验证码位数无效' }
+  if (body.period !== undefined && !allowedPeriods.includes(Number(body.period))) return { error: '验证码周期无效' }
+  if (body.algorithm !== undefined && !allowedAlgorithms.includes(body.algorithm)) return { error: '验证码算法无效' }
   return { secret }
 }
 
