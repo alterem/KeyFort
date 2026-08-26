@@ -119,11 +119,11 @@ input::placeholder, textarea::placeholder { color: #9da59f; }
 .sidebar-close { display: none; }
 .sidebar-nav, .sidebar-tools { display: flex; flex-direction: column; gap: 4px; }
 .nav-label { padding: 0 10px 7px; color: #8b938e; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
-.sidebar nav button, .sidebar-tools button { position: relative; width: 100%; height: 40px; padding: 0 10px; border: 0; border-radius: 6px; display: grid; grid-template-columns: 21px 1fr auto; align-items: center; gap: 9px; color: #58615c; background: transparent; text-align: left; font-size: 13px; font-weight: 500; }
-.sidebar nav button:hover, .sidebar-tools button:hover { color: #2c3530; background: #e5eae7; }
-.sidebar nav button.active { color: #145e47; background: #dfece6; font-weight: 600; }
-.sidebar nav button.active::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--green); }
-.sidebar nav button b { min-width: 22px; padding: 2px 6px; border-radius: 10px; color: #78817c; background: rgba(255,255,255,.65); font-size: 10px; text-align: center; }
+.sidebar nav button, .sidebar nav a, .sidebar-tools button { position: relative; width: 100%; height: 40px; padding: 0 10px; border: 0; border-radius: 6px; display: grid; grid-template-columns: 21px 1fr auto; align-items: center; gap: 9px; color: #58615c; background: transparent; text-align: left; text-decoration: none; font-size: 13px; font-weight: 500; }
+.sidebar nav button:hover, .sidebar nav a:hover, .sidebar-tools button:hover { color: #2c3530; background: #e5eae7; }
+.sidebar nav button.active, .sidebar nav a.active { color: #145e47; background: #dfece6; font-weight: 600; }
+.sidebar nav button.active::before, .sidebar nav a.active::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--green); }
+.sidebar nav button b, .sidebar nav a b { min-width: 22px; padding: 2px 6px; border-radius: 10px; color: #78817c; background: rgba(255,255,255,.65); font-size: 10px; text-align: center; }
 .sidebar-tools { margin-top: 28px; }
 .sidebar-footer { margin-top: auto; padding: 14px 5px 0; border-top: 1px solid #d8dedb; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .vault-status { min-width: 0; display: flex; align-items: center; gap: 9px; }
@@ -161,12 +161,16 @@ input::placeholder, textarea::placeholder { color: #9da59f; }
 .account-card > * { position: relative; z-index: 1; }
 .account-card:hover { border-color: #c4d1c9; box-shadow: 0 12px 28px rgba(28, 47, 38, .075); transform: translateY(-2px); }
 .account-card.countdown-critical-card { animation: countdown-flash 900ms ease-in-out infinite; }
-.account-card-head { padding-top: 2px; display: grid; grid-template-columns: 44px minmax(0, 1fr) 36px; gap: 12px; align-items: center; }
+.account-card-head { padding-top: 2px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
 .service-avatar { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 9px; color: #fff; background: var(--avatar-color); box-shadow: 0 4px 10px color-mix(in srgb, var(--avatar-color) 22%, transparent); font-size: 12px; font-weight: 700; }
 .account-identity { min-width: 0; }
 .service-name-row { min-width: 0; display: flex; align-items: center; gap: 5px; }
 .service-name-row h3 { overflow: hidden; margin: 0; color: #272f2b; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .favorite-indicator { flex: 0 0 auto; color: #b7870a; }
+.card-actions { display: flex; align-items: center; gap: 1px; }
+.favorite-button { color: #87918b; }
+.favorite-button:hover { color: #a1780b; background: #faf5df; }
+.favorite-button.active { color: #b7870a; background: #fbf5dc; }
 .public-indicator { flex: 0 0 auto; color: #3a7b68; }
 .account-identity p { overflow: hidden; margin: 4px 0 0; color: #89908c; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .ui-menu-content { z-index: 80; min-width: 150px; padding: 5px; border: 1px solid #d7ddda; border-radius: 7px; background: #fff; box-shadow: 0 10px 30px rgba(21, 37, 29, .14); animation: menu-in 120ms ease-out; }

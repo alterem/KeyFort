@@ -305,6 +305,13 @@ app.put('/api/accounts/:id', requireAuth, (req, res) => {
   return res.json({ account: serializeAccount(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id)) })
 })
 
+app.patch('/api/accounts/:id/favorite', requireAuth, (req, res) => {
+  const favorite = req.body.favorite ? 1 : 0
+  const result = db.prepare('UPDATE accounts SET favorite = ?, updated_at = ? WHERE id = ?').run(favorite, Date.now(), req.params.id)
+  if (!result.changes) return res.status(404).json({ message: '验证项不存在' })
+  return res.json({ account: serializeAccount(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id)) })
+})
+
 app.delete('/api/accounts/:id', requireAuth, (req, res) => {
   const result = db.prepare('DELETE FROM accounts WHERE id = ?').run(req.params.id)
   if (!result.changes) return res.status(404).json({ message: '验证项不存在' })

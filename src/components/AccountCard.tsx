@@ -37,24 +37,28 @@ export function AccountCard({
         <div className="account-identity">
           <div className="service-name-row">
             <h3 title={account.name}>{account.name}</h3>
-            {account.favorite && <Star className="favorite-indicator" size={15} fill="currentColor" aria-label="已收藏" />}
             {account.publicAccess && <Globe2 className="public-indicator" size={15} aria-label="无需登录访问" />}
           </div>
           <p title={account.account || account.issuer}>{account.account || account.issuer || '未填写账号'}</p>
         </div>
-        <div className="card-menu-wrap">
-          {!readOnly && <DropdownMenu>
+        <div className="card-actions">
+          <button className={`icon-button favorite-button ${account.favorite ? 'active' : ''}`} type="button" onClick={onFavorite} title={account.favorite ? '取消收藏' : '添加收藏'} aria-label={account.favorite ? '取消收藏' : '添加收藏'}>
+            <Star size={17} fill={account.favorite ? 'currentColor' : 'none'} />
+          </button>
+          <div className="card-menu-wrap">
+            {!readOnly && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="icon-button" type="button" title="更多操作" aria-label="更多操作">
                 <Ellipsis size={20} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onFavorite}><Star size={16} />{account.favorite ? '取消收藏' : '添加收藏'}</DropdownMenuItem>
+              <DropdownMenuItem onClick={onFavorite}><Star size={16} />{account.favorite ? '取消收藏' : '添加收藏'}</DropdownMenuItem>
               <DropdownMenuItem onSelect={onEdit}><Pencil size={16} />编辑</DropdownMenuItem>
               <DropdownMenuItem className="danger-menu-item" onSelect={onDelete}><Trash2 size={16} />删除</DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>}
+            </DropdownMenu>}
+          </div>
         </div>
       </div>
 

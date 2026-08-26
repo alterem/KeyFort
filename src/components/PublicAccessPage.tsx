@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, Copy, Globe2, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { listPublicAccounts, type AccountView } from '../lib/api'
 
 export function PublicAccessPage() {
@@ -34,8 +35,8 @@ export function PublicAccessPage() {
   return (
     <main className="public-page">
       <header className="public-page-header">
-        <a className="brand-lockup" href="/"><span className="brand-mark"><ShieldCheck size={21} /></span><span>KeyFort</span></a>
-        <a className="public-login-link" href="/"><ArrowLeft size={15} />团队登录</a>
+        <Link className="brand-lockup" to="/"><span className="brand-mark"><ShieldCheck size={21} /></span><span>KeyFort</span></Link>
+        <Link className="public-login-link" to="/"><ArrowLeft size={15} />团队登录</Link>
       </header>
 
       <section className="public-page-content">

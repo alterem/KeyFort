@@ -1,7 +1,9 @@
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArchiveRestore,
   FileKey,
+  Globe2,
   HardDrive,
   LayoutGrid,
   LogOut,
@@ -17,25 +19,24 @@ import {
 import { AccountCard } from './components/AccountCard'
 import { AccountModal } from './components/AccountModal'
 import { AuthScreen } from './components/AuthScreen'
-import { PublicAccessPage } from './components/PublicAccessPage'
 import { TeamModal } from './components/TeamModal'
-import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logout, setupAccount, updateAccount, type AccountView, type User } from './lib/api'
+import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logout, setupAccount, updateAccount, updateFavorite, type AccountView, type User } from './lib/api'
 
 import { enterGuestMode, isGuestActive, leaveGuestMode, loadGuestAccounts, saveGuestAccounts, toGuestAccountView } from './lib/guest'
 import { normalizeSecret } from './lib/totp'
 import type { TotpAccount } from './types'
 
-type Filter = 'all' | 'favorites'
 type AuthMode = 'create' | 'unlock'
 type WorkspaceMode = 'team' | 'guest'
 
 export default function App() {
-  const isPublicPage = window.location.pathname === '/public'
+  const location = useLocation()
+  const navigate = useNavigate()
+  const filter = location.pathname === '/favorites' ? 'favorites' : 'all'
   const [authMode, setAuthMode] = useState<AuthMode>('unlock')
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [accounts, setAccounts] = useState<AccountView[]>([])
-  const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<TotpAccount | null | undefined>(undefined)
   const [teamOpen, setTeamOpen] = useState(false)
@@ -47,10 +48,6 @@ export default function App() {
   const guestAccounts = useRef<TotpAccount[]>([])
 
   useEffect(() => {
-    if (isPublicPage) {
-      setLoading(false)
-      return
-    }
     if (isGuestActive()) {
       guestAccounts.current = loadGuestAccounts()
       setAccounts(guestAccounts.current.map((account) => toGuestAccountView(account)))
@@ -76,7 +73,14 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (isPublicPage || !workspaceMode) return undefined
+    if (loading) return
+    const dashboardPath = location.pathname === '/accounts' || location.pathname === '/favorites'
+    if (!workspaceMode && location.pathname !== '/') navigate('/', { replace: true })
+    if (workspaceMode && !dashboardPath) navigate('/accounts', { replace: true })
+  }, [loading, location.pathname, navigate, workspaceMode])
+
+  useEffect(() => {
+    if (!workspaceMode) return undefined
     const timer = window.setInterval(() => {
       if (workspaceMode === 'team') void refreshTeamAccounts()
       else refreshGuestAccounts()
@@ -114,6 +118,7 @@ export default function App() {
     const result = authMode === 'create' ? await setupAccount(payload) : await login(payload)
     setUser(result.user)
     setWorkspaceMode('team')
+    navigate('/accounts')
     setServerError('')
     await refreshTeamAccounts()
   }
@@ -123,6 +128,7 @@ export default function App() {
     setAccounts(guestAccounts.current.map((account) => toGuestAccountView(account)))
     setWorkspaceMode('guest')
     setUser(null)
+    navigate('/accounts')
     setServerError('')
   }
 
@@ -189,23 +195,23 @@ export default function App() {
   }
 
   async function toggleFavorite(account: AccountView) {
+    const nextFavorite = !account.favorite
+    setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, favorite: nextFavorite } : item))
+
     if (workspaceMode === 'guest') {
-      persistGuestAccounts(guestAccounts.current.map((item) => item.id === account.id ? { ...item, favorite: !item.favorite, updatedAt: Date.now() } : item))
+      persistGuestAccounts(guestAccounts.current.map((item) => item.id === account.id ? { ...item, favorite: nextFavorite, updatedAt: Date.now() } : item))
+      showToast(nextFavorite ? '已添加到收藏' : '已取消收藏')
       return
     }
-    await updateAccount(account.id, {
-      name: account.name,
-      account: account.account,
-      issuer: account.issuer,
-      digits: account.digits,
-      period: account.period,
-      algorithm: account.algorithm,
-      notes: account.notes,
-      favorite: !account.favorite,
-      publicAccess: account.publicAccess,
-      color: account.color,
-    })
-    await refreshTeamAccounts()
+
+    try {
+      const result = await updateFavorite(account.id, nextFavorite)
+      setAccounts((current) => current.map((item) => item.id === account.id ? result.account : item))
+      showToast(nextFavorite ? '已添加到收藏' : '已取消收藏')
+    } catch (reason) {
+      setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, favorite: account.favorite } : item))
+      showToast(reason instanceof Error ? reason.message : '收藏操作失败')
+    }
   }
 
   async function copyToken(account: AccountView) {
@@ -232,6 +238,7 @@ export default function App() {
     setAccounts([])
     setSearch('')
     setSidebarOpen(false)
+    navigate('/')
     try {
       const status = await getAuthStatus()
       setAuthMode(status.setupRequired ? 'create' : 'unlock')
@@ -247,7 +254,6 @@ export default function App() {
       .filter((account) => !query || [account.name, account.account, account.issuer, account.notes].some((value) => value.toLocaleLowerCase().includes(query)))
   }, [accounts, filter, search])
 
-  if (isPublicPage) return <PublicAccessPage />
 
   if (loading) return <div className="app-loading"><ShieldCheck size={26} /><span>正在打开 KeyFort…</span></div>
   if (!workspaceMode) return <AuthScreen mode={authMode} onSubmit={authenticate} onTryGuest={startGuestMode} serverError={serverError} />
@@ -265,8 +271,9 @@ export default function App() {
 
         <nav className="sidebar-nav" aria-label="主导航">
           <span className="nav-label">{isGuest ? '本地保险库' : '共享保险库'}</span>
-          <button className={filter === 'all' ? 'active' : ''} type="button" onClick={() => { setFilter('all'); setSidebarOpen(false) }}><LayoutGrid size={18} /><span>全部验证项</span><b>{accounts.length}</b></button>
-          <button className={filter === 'favorites' ? 'active' : ''} type="button" onClick={() => { setFilter('favorites'); setSidebarOpen(false) }}><Star size={18} /><span>收藏</span><b>{favoriteCount}</b></button>
+          <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/accounts" onClick={() => setSidebarOpen(false)}><LayoutGrid size={18} /><span>全部验证项</span><b>{accounts.length}</b></NavLink>
+          <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/favorites" onClick={() => setSidebarOpen(false)}><Star size={18} /><span>收藏</span><b>{favoriteCount}</b></NavLink>
+          <NavLink to="/public" onClick={() => setSidebarOpen(false)}><Globe2 size={18} /><span>公开验证码</span></NavLink>
         </nav>
 
         {!isGuest && user?.role === 'admin' && <div className="sidebar-tools"><span className="nav-label">团队</span><button type="button" onClick={() => setTeamOpen(true)}><Users size={18} /><span>成员管理</span></button></div>}

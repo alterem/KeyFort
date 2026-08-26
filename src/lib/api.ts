@@ -72,6 +72,10 @@ export function updateAccount(id: string, payload: AccountPayload) {
   return request<{ account: AccountView }>(`/api/accounts/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
 }
 
+export function updateFavorite(id: string, favorite: boolean) {
+  return request<{ account: AccountView }>(`/api/accounts/${id}/favorite`, { method: 'PATCH', body: JSON.stringify({ favorite }) })
+}
+
 export function deleteAccount(id: string) {
   return request<void>(`/api/accounts/${id}`, { method: 'DELETE' })
 }
