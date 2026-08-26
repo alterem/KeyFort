@@ -13,6 +13,7 @@ export interface TotpAccount {
   algorithm: Algorithm
   notes: string
   favorite: boolean
+  publicAccess: boolean
   color: string
   createdAt: number
   updatedAt: number

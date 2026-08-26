@@ -1,4 +1,4 @@
-import { Check, Copy, Ellipsis, Pencil, Star, Trash2 } from 'lucide-react'
+import { Check, Copy, Ellipsis, Globe2, Pencil, Star, Trash2 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import type { AccountView } from '../lib/api'
 
@@ -9,6 +9,7 @@ interface AccountCardProps {
   onEdit: () => void
   onDelete: () => void
   onFavorite: () => void
+  readOnly?: boolean
 }
 
 export function AccountCard({
@@ -18,6 +19,7 @@ export function AccountCard({
   onEdit,
   onDelete,
   onFavorite,
+  readOnly = false,
 }: AccountCardProps) {
   const token = account.token
   const remaining = account.remaining
@@ -36,12 +38,12 @@ export function AccountCard({
           <div className="service-name-row">
             <h3 title={account.name}>{account.name}</h3>
             {account.favorite && <Star className="favorite-indicator" size={15} fill="currentColor" aria-label="已收藏" />}
+            {account.publicAccess && <Globe2 className="public-indicator" size={15} aria-label="无需登录访问" />}
           </div>
           <p title={account.account || account.issuer}>{account.account || account.issuer || '未填写账号'}</p>
         </div>
         <div className="card-menu-wrap">
-
-          <DropdownMenu>
+          {!readOnly && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="icon-button" type="button" title="更多操作" aria-label="更多操作">
                 <Ellipsis size={20} />
@@ -52,7 +54,7 @@ export function AccountCard({
               <DropdownMenuItem onSelect={onEdit}><Pencil size={16} />编辑</DropdownMenuItem>
               <DropdownMenuItem className="danger-menu-item" onSelect={onDelete}><Trash2 size={16} />删除</DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>
       </div>
 

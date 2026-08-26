@@ -50,12 +50,17 @@ db.exec(`
     algorithm TEXT NOT NULL DEFAULT 'SHA1',
     notes TEXT NOT NULL DEFAULT '',
     favorite INTEGER NOT NULL DEFAULT 0,
+    public_access INTEGER NOT NULL DEFAULT 0,
     color TEXT NOT NULL DEFAULT '#287a5d',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
 `)
 
+const accountColumns = db.prepare('PRAGMA table_info(accounts)').all()
+if (!accountColumns.some((column) => column.name === 'public_access')) {
+  db.exec('ALTER TABLE accounts ADD COLUMN public_access INTEGER NOT NULL DEFAULT 0')
+}
 function getEncryptionKey() {
   const configured = process.env.TOTP_ENCRYPTION_KEY
   if (configured) {
@@ -169,11 +174,17 @@ function serializeAccount(row) {
     algorithm: row.algorithm,
     notes: row.notes,
     favorite: Boolean(row.favorite),
+    publicAccess: Boolean(row.public_access),
     color: row.color,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...getToken(row),
   }
+}
+
+function serializePublicAccount(row) {
+  const account = serializeAccount(row)
+  return { ...account, notes: '', favorite: false }
 }
 
 function seedDefaultAccount() {
@@ -184,11 +195,11 @@ function seedDefaultAccount() {
   const now = Date.now()
   const encrypted = encryptSecret(secret)
   db.prepare(`INSERT INTO accounts
-    (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, public_access, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(crypto.randomUUID(), source.name || '默认账号', source.account || '', source.issuer || '', encrypted.ciphertext, encrypted.iv,
       [6, 7, 8].includes(source.digits) ? source.digits : 6, [30, 60].includes(source.period) ? source.period : 30,
-      ['SHA1', 'SHA256', 'SHA512'].includes(source.algorithm) ? source.algorithm : 'SHA1', source.notes || '', source.favorite ? 1 : 0, source.color || '#287a5d', now, now)
+      ['SHA1', 'SHA256', 'SHA512'].includes(source.algorithm) ? source.algorithm : 'SHA1', source.notes || '', source.favorite ? 1 : 0, source.publicAccess ? 1 : 0, source.color || '#287a5d', now, now)
 }
 function validateAccount(body, requiresSecret = true) {
   const secret = normalizeSecret(body.secret)
@@ -254,34 +265,43 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: serializeUser(req.user) }))
 
+app.get('/api/public/accounts', (_req, res) => {
+  const accounts = db.prepare('SELECT * FROM accounts WHERE public_access = 1 ORDER BY name COLLATE NOCASE ASC').all()
+  res.json({ accounts: accounts.map(serializePublicAccount) })
+})
+
 app.get('/api/accounts', requireAuth, (req, res) => {
   const accounts = db.prepare('SELECT * FROM accounts ORDER BY favorite DESC, name COLLATE NOCASE ASC').all()
   res.json({ accounts: accounts.map(serializeAccount) })
 })
 
 app.post('/api/accounts', requireAuth, (req, res) => {
+  if (req.body.publicAccess && req.user.role !== 'admin') return res.status(403).json({ message: '只有管理员可以开放公开访问' })
   const validation = validateAccount(req.body)
   if (validation.error) return res.status(400).json({ message: validation.error })
   const now = Date.now()
   const id = crypto.randomUUID()
   const encrypted = encryptSecret(validation.secret)
   db.prepare(`INSERT INTO accounts
-    (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, public_access, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, String(req.body.name).trim(), String(req.body.account || '').trim(), String(req.body.issuer || '').trim(), encrypted.ciphertext, encrypted.iv,
-      Number(req.body.digits || 6), Number(req.body.period || 30), req.body.algorithm || 'SHA1', String(req.body.notes || '').trim(), req.body.favorite ? 1 : 0, req.body.color || '#287a5d', now, now)
+      Number(req.body.digits || 6), Number(req.body.period || 30), req.body.algorithm || 'SHA1', String(req.body.notes || '').trim(), req.body.favorite ? 1 : 0, req.body.publicAccess ? 1 : 0, req.body.color || '#287a5d', now, now)
   return res.status(201).json({ account: serializeAccount(db.prepare('SELECT * FROM accounts WHERE id = ?').get(id)) })
 })
 
 app.put('/api/accounts/:id', requireAuth, (req, res) => {
   const current = db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id)
   if (!current) return res.status(404).json({ message: '验证项不存在' })
+  if (req.body.publicAccess !== undefined && req.user.role !== 'admin' && Boolean(req.body.publicAccess) !== Boolean(current.public_access)) {
+    return res.status(403).json({ message: '只有管理员可以修改公开访问设置' })
+  }
   const validation = validateAccount({ ...current, ...req.body }, false)
   if (validation.error) return res.status(400).json({ message: validation.error })
   const encrypted = validation.secret ? encryptSecret(validation.secret) : { ciphertext: current.secret_ciphertext, iv: current.secret_iv }
-  db.prepare(`UPDATE accounts SET name = ?, account = ?, issuer = ?, secret_ciphertext = ?, secret_iv = ?, digits = ?, period = ?, algorithm = ?, notes = ?, favorite = ?, color = ?, updated_at = ? WHERE id = ?`)
+  db.prepare(`UPDATE accounts SET name = ?, account = ?, issuer = ?, secret_ciphertext = ?, secret_iv = ?, digits = ?, period = ?, algorithm = ?, notes = ?, favorite = ?, public_access = ?, color = ?, updated_at = ? WHERE id = ?`)
     .run(String(req.body.name ?? current.name).trim(), String(req.body.account ?? current.account).trim(), String(req.body.issuer ?? current.issuer).trim(), encrypted.ciphertext, encrypted.iv,
-      Number(req.body.digits || current.digits), Number(req.body.period || current.period), req.body.algorithm || current.algorithm, String(req.body.notes ?? current.notes).trim(), req.body.favorite === undefined ? current.favorite : (req.body.favorite ? 1 : 0), req.body.color || current.color, Date.now(), req.params.id)
+      Number(req.body.digits || current.digits), Number(req.body.period || current.period), req.body.algorithm || current.algorithm, String(req.body.notes ?? current.notes).trim(), req.body.favorite === undefined ? current.favorite : (req.body.favorite ? 1 : 0), req.body.publicAccess === undefined ? current.public_access : (req.body.publicAccess ? 1 : 0), req.body.color || current.color, Date.now(), req.params.id)
   return res.json({ account: serializeAccount(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id)) })
 })
 

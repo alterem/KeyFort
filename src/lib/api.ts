@@ -42,6 +42,10 @@ export function logout() {
   return request<void>('/api/auth/logout', { method: 'POST' })
 }
 
+export function listPublicAccounts() {
+  return request<{ accounts: AccountView[] }>('/api/public/accounts')
+}
+
 export function listAccounts() {
   return request<{ accounts: AccountView[] }>('/api/accounts')
 }
@@ -56,6 +60,7 @@ export interface AccountPayload {
   algorithm: Algorithm
   notes: string
   favorite: boolean
+  publicAccess: boolean
   color: string
 }
 

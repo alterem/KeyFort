@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Eye, EyeOff, KeyRound } from 'lucide-react'
+import { Eye, EyeOff, Globe2, KeyRound } from 'lucide-react'
 import { normalizeSecret, parseOtpUri } from '../lib/totp'
 import type { Algorithm, TokenDigits, TokenPeriod, TotpAccount } from '../types'
 import { Button } from './ui/button'
@@ -20,6 +20,8 @@ interface AccountModalProps {
   account: TotpAccount | null
   onClose: () => void
   onSave: (account: TotpAccount) => Promise<void>
+  allowPublic?: boolean
+  localMode?: boolean
 }
 
 function makeAccount(): TotpAccount {
@@ -35,14 +37,15 @@ function makeAccount(): TotpAccount {
     algorithm: 'SHA1',
     notes: '',
     favorite: false,
+    publicAccess: false,
     color: randomColor(),
     createdAt: now,
     updatedAt: now,
   }
 }
 
-export function AccountModal({ account, onClose, onSave }: AccountModalProps) {
-  const [draft, setDraft] = useState<TotpAccount>(() => account ? { ...account } : makeAccount())
+export function AccountModal({ account, onClose, onSave, allowPublic = false, localMode = false }: AccountModalProps) {
+  const [draft, setDraft] = useState<TotpAccount>(() => account ? { ...account, publicAccess: account.publicAccess ?? false } : makeAccount())
   const [showSecret, setShowSecret] = useState(false)
   const [error, setError] = useState('')
 
@@ -175,6 +178,19 @@ export function AccountModal({ account, onClose, onSave }: AccountModalProps) {
               </div>
             </div>
 
+            {allowPublic && (
+              <div className={`public-access-option ${draft.publicAccess ? 'enabled' : ''}`}>
+                <div className="public-access-copy">
+                  <span className="public-access-icon"><Globe2 size={17} /></span>
+                  <div><strong>无需登录访问</strong><p>任何访问 KeyFort 的人都能看到此账号的实时验证码。</p></div>
+                </div>
+                <label className="switch-control">
+                  <input type="checkbox" checked={draft.publicAccess} onChange={(event) => update('publicAccess', event.target.checked)} />
+                  <span aria-hidden="true" />
+                </label>
+              </div>
+            )}
+
             <div className="form-field">
               <label htmlFor="account-notes">备注</label>
               <textarea id="account-notes" rows={3} value={draft.notes} onChange={(event) => update('notes', event.target.value)} placeholder="恢复方式、用途或其他信息" />
@@ -183,7 +199,7 @@ export function AccountModal({ account, onClose, onSave }: AccountModalProps) {
           </div>
 
           <footer className="modal-footer">
-            <span className="encrypted-hint"><KeyRound size={15} />保存后自动加密</span>
+            <span className="encrypted-hint"><KeyRound size={15} />{localMode ? '保存在当前浏览器' : '保存后由服务端加密'}</span>
             <div className="modal-actions">
               <Button className="secondary-button" type="button" onClick={onClose}>取消</Button>
               <Button className="primary-button" type="submit">{account ? '保存修改' : '添加账号'}</Button>

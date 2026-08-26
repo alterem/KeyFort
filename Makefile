@@ -26,7 +26,6 @@ init:
 	else \
 		command -v openssl >/dev/null 2>&1 || { echo 'openssl is required to create the encryption key'; exit 1; }; \
 		printf '%s\n' \
-		  'NODE_ENV=production' \
 		  'PORT=$(PORT)' \
 		  'DATABASE_PATH=/app/data/keyfort.db' \
 		  "TOTP_ENCRYPTION_KEY=$$(openssl rand -base64 32)" \

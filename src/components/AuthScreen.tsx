@@ -1,13 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Globe2, HardDrive, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { Button } from './ui/button'
 
 interface AuthScreenProps {
   mode: 'create' | 'unlock'
   onSubmit: (payload: { email: string; name: string; password: string }) => Promise<void>
+  onTryGuest: () => void
+  serverError?: string
 }
 
-export function AuthScreen({ mode, onSubmit }: AuthScreenProps) {
+export function AuthScreen({ mode, onSubmit, onTryGuest, serverError }: AuthScreenProps) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
@@ -96,11 +98,19 @@ export function AuthScreen({ mode, onSubmit }: AuthScreenProps) {
             </>
           )}
 
+          {serverError && <div className="form-error" role="status">团队服务暂时不可用：{serverError}</div>}
           {error && <div className="form-error" role="alert">{error}</div>}
           <Button className="primary-button auth-submit" type="submit" disabled={loading}>
             {loading ? '正在处理…' : mode === 'create' ? '创建并进入' : '登录团队'}
           </Button>
-          <p className="auth-footnote">刷新页面后需要重新登录<br />TOTP 密钥由服务端加密存储</p>
+
+          <div className="auth-divider"><span>或者</span></div>
+          <Button className="guest-button" variant="outline" type="button" onClick={onTryGuest}>
+            <HardDrive size={17} />无需账号，本地试用
+          </Button>
+          <p className="guest-hint">试用数据只保存在当前浏览器，不会同步到团队。</p>
+          <p className="auth-footnote">团队 TOTP 密钥由服务端加密存储</p>
+          <a className="public-link" href="/public"><Globe2 size={14} />查看公开验证码</a>
         </form>
       </section>
     </main>
