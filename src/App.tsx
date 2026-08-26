@@ -19,7 +19,7 @@ import {
 import { AccountCard } from './components/AccountCard'
 import { AccountModal } from './components/AccountModal'
 import { AuthScreen } from './components/AuthScreen'
-import { TeamModal } from './components/TeamModal'
+import { TeamPage } from './components/TeamPage'
 import { createAccount, deleteAccount, getAuthStatus, listAccounts, login, logout, setupAccount, updateAccount, updateFavorite, type AccountView, type User } from './lib/api'
 
 import { enterGuestMode, isGuestActive, leaveGuestMode, loadGuestAccounts, saveGuestAccounts, toGuestAccountView } from './lib/guest'
@@ -39,7 +39,6 @@ export default function App() {
   const [accounts, setAccounts] = useState<AccountView[]>([])
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<TotpAccount | null | undefined>(undefined)
-  const [teamOpen, setTeamOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toast, setToast] = useState('')
@@ -74,10 +73,10 @@ export default function App() {
 
   useEffect(() => {
     if (loading) return
-    const dashboardPath = location.pathname === '/accounts' || location.pathname === '/favorites'
+    const dashboardPath = location.pathname === '/accounts' || location.pathname === '/favorites' || (location.pathname === '/team' && workspaceMode === 'team' && user?.role === 'admin')
     if (!workspaceMode && location.pathname !== '/') navigate('/', { replace: true })
     if (workspaceMode && !dashboardPath) navigate('/accounts', { replace: true })
-  }, [loading, location.pathname, navigate, workspaceMode])
+  }, [loading, location.pathname, navigate, user?.role, workspaceMode])
 
   useEffect(() => {
     if (!workspaceMode) return undefined
@@ -259,6 +258,7 @@ export default function App() {
   if (!workspaceMode) return <AuthScreen mode={authMode} onSubmit={authenticate} onTryGuest={startGuestMode} serverError={serverError} />
 
   const isGuest = workspaceMode === 'guest'
+  const isTeamPage = location.pathname === '/team' && !isGuest && user?.role === 'admin'
   const favoriteCount = accounts.filter((account) => account.favorite).length
 
   return (
@@ -274,9 +274,8 @@ export default function App() {
           <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/accounts" onClick={() => setSidebarOpen(false)}><LayoutGrid size={18} /><span>全部验证项</span><b>{accounts.length}</b></NavLink>
           <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/favorites" onClick={() => setSidebarOpen(false)}><Star size={18} /><span>收藏</span><b>{favoriteCount}</b></NavLink>
           <NavLink to="/public" onClick={() => setSidebarOpen(false)}><Globe2 size={18} /><span>公开验证码</span></NavLink>
+          {!isGuest && user?.role === 'admin' && <NavLink className={({ isActive }) => isActive ? 'active' : ''} to="/team" onClick={() => setSidebarOpen(false)}><Users size={18} /><span>成员管理</span></NavLink>}
         </nav>
-
-        {!isGuest && user?.role === 'admin' && <div className="sidebar-tools"><span className="nav-label">团队</span><button type="button" onClick={() => setTeamOpen(true)}><Users size={18} /><span>成员管理</span></button></div>}
 
         <div className="sidebar-footer">
           <div className="vault-status"><span>{isGuest ? <HardDrive size={16} /> : <Users size={16} />}</span><div><strong>{isGuest ? '本地试用' : user?.name}</strong><small>{isGuest ? '仅此浏览器' : user?.role === 'admin' ? '管理员' : '团队成员'}</small></div></div>
@@ -288,11 +287,12 @@ export default function App() {
       <main className="workspace">
         <header className="workspace-header">
           <div className="mobile-title"><button className="icon-button" type="button" onClick={() => setSidebarOpen(true)} title="打开菜单" aria-label="打开菜单"><Menu size={21} /></button><div className="brand-lockup"><span className="brand-mark"><ShieldCheck size={19} /></span><span>KeyFort</span></div></div>
-          <div className="search-box"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索名称、账号或备注" aria-label="搜索验证项" />{search && <button className="icon-button" type="button" onClick={() => setSearch('')} title="清除搜索" aria-label="清除搜索"><X size={16} /></button>}</div>
-          <button className="primary-button add-button" type="button" onClick={() => setEditing(null)}><Plus size={18} />添加验证项</button>
+          {!isTeamPage && <><div className="search-box"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索名称、账号或备注" aria-label="搜索验证项" />{search && <button className="icon-button" type="button" onClick={() => setSearch('')} title="清除搜索" aria-label="清除搜索"><X size={16} /></button>}</div>
+          <button className="primary-button add-button" type="button" onClick={() => setEditing(null)}><Plus size={18} />添加验证项</button></>}
         </header>
 
         <div className="workspace-content">
+          {isTeamPage ? <TeamPage onToast={showToast} /> : <>
           <div className="page-heading"><div><span className="page-kicker">{isGuest ? 'LOCAL AUTHENTICATOR' : 'TEAM AUTHENTICATOR'}</span><h1>{filter === 'favorites' ? '我的收藏' : isGuest ? '本地验证项' : '共享验证项'}</h1><p>{visibleAccounts.length} 个账号 · {isGuest ? '保存在当前浏览器' : '团队实时同步'}</p></div><div className={`security-pill ${isGuest ? 'local-pill' : ''}`}>{isGuest ? <HardDrive size={16} /> : <ShieldCheck size={16} />}{isGuest ? '本地试用' : '已连接'}</div></div>
           {isGuest && <div className="local-mode-notice"><HardDrive size={16} /><div><strong>本地试用模式</strong><span>数据和 Secret Key 保存在当前浏览器，请勿用于重要的正式凭证。</span></div></div>}
           {!isGuest && serverError && <div className="sync-warning"><Settings2 size={16} />{serverError}</div>}
@@ -300,11 +300,11 @@ export default function App() {
           {visibleAccounts.length > 0 ? <div className="account-grid">{visibleAccounts.map((account) => <AccountCard key={account.id} account={account} copied={copiedId === account.id} onCopy={() => void copyToken(account)} onEdit={() => openEditor(account)} onDelete={() => void removeAccount(account)} onFavorite={() => void toggleFavorite(account)} />)}</div> : (
             <div className="empty-state"><div className="empty-icon">{search ? <Search size={27} /> : filter === 'favorites' ? <Star size={27} /> : <FileKey size={27} />}</div><h2>{search ? '没有匹配的验证项' : filter === 'favorites' ? '还没有收藏' : isGuest ? '本地保险库还是空的' : '共享保险库还是空的'}</h2><p>{search ? '尝试搜索其他名称、账号或备注' : filter === 'favorites' ? '在验证项菜单中添加收藏' : '添加第一个验证项开始使用'}</p>{!search && filter === 'all' && <button className="primary-button" type="button" onClick={() => setEditing(null)}><Plus size={18} />添加验证项</button>}</div>
           )}
+          </>}
         </div>
       </main>
 
       {editing !== undefined && <AccountModal account={editing} onClose={() => setEditing(undefined)} onSave={saveAccount} allowPublic={!isGuest && user?.role === 'admin'} localMode={isGuest} />}
-      {teamOpen && <TeamModal onClose={() => setTeamOpen(false)} onToast={showToast} />}
       {toast && <div className="toast" role="status"><ArchiveRestore size={17} />{toast}</div>}
     </div>
   )

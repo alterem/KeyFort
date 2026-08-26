@@ -51,6 +51,7 @@ db.exec(`
     notes TEXT NOT NULL DEFAULT '',
     favorite INTEGER NOT NULL DEFAULT 0,
     public_access INTEGER NOT NULL DEFAULT 0,
+    config_default INTEGER NOT NULL DEFAULT 0,
     color TEXT NOT NULL DEFAULT '#287a5d',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -60,6 +61,9 @@ db.exec(`
 const accountColumns = db.prepare('PRAGMA table_info(accounts)').all()
 if (!accountColumns.some((column) => column.name === 'public_access')) {
   db.exec('ALTER TABLE accounts ADD COLUMN public_access INTEGER NOT NULL DEFAULT 0')
+}
+if (!accountColumns.some((column) => column.name === 'config_default')) {
+  db.exec('ALTER TABLE accounts ADD COLUMN config_default INTEGER NOT NULL DEFAULT 0')
 }
 function getEncryptionKey() {
   const configured = process.env.TOTP_ENCRYPTION_KEY
@@ -187,19 +191,68 @@ function serializePublicAccount(row) {
   return { ...account, notes: '', favorite: false }
 }
 
-function seedDefaultAccount() {
-  if (db.prepare('SELECT COUNT(*) AS count FROM accounts').get().count > 0) return
+function getConfiguredDefaultAccount() {
   const source = serverConfig.defaultAccount ?? (process.env.DEFAULT_TOTP_SECRET ? { secret: process.env.DEFAULT_TOTP_SECRET } : undefined)
   const secret = normalizeSecret(source?.secret)
-  if (!source?.secret || !validSecret(secret)) return
+  if (!source?.secret || !validSecret(secret)) return null
+  return { source, secret }
+}
+
+function markLegacyConfiguredAccount() {
+  const configured = getConfiguredDefaultAccount()
+  if (!configured) return
+  const candidates = db.prepare('SELECT * FROM accounts WHERE config_default = 0').all()
+  for (const row of candidates) {
+    try {
+      if (decryptSecret(row) === configured.secret && row.name === (configured.source.name || '默认账号') && row.account === (configured.source.account || '') && row.issuer === (configured.source.issuer || '')) {
+        db.prepare('UPDATE accounts SET config_default = 1, public_access = 1 WHERE id = ?').run(row.id)
+      }
+    } catch {
+      // Ignore accounts that cannot be decrypted with the active server key.
+    }
+  }
+}
+
+function getPublicAccounts() {
+  const accounts = db.prepare('SELECT * FROM accounts WHERE public_access = 1 ORDER BY name COLLATE NOCASE ASC').all()
+  const configured = getConfiguredDefaultAccount()
+  if (!configured || db.prepare('SELECT COUNT(*) AS count FROM accounts WHERE config_default = 1').get().count > 0) return accounts
+  const now = Date.now()
+  const encrypted = encryptSecret(configured.secret)
+  return [{
+    id: 'config-default',
+    name: configured.source.name || '默认账号',
+    account: configured.source.account || '',
+    issuer: configured.source.issuer || '',
+    secret_ciphertext: encrypted.ciphertext,
+    secret_iv: encrypted.iv,
+    digits: [6, 7, 8].includes(configured.source.digits) ? configured.source.digits : 6,
+    period: [30, 60].includes(configured.source.period) ? configured.source.period : 30,
+    algorithm: ['SHA1', 'SHA256', 'SHA512'].includes(configured.source.algorithm) ? configured.source.algorithm : 'SHA1',
+    notes: configured.source.notes || '',
+    favorite: 0,
+    public_access: 1,
+    config_default: 1,
+    color: configured.source.color || '#287a5d',
+    created_at: now,
+    updated_at: now,
+  }, ...accounts]
+}
+
+function seedDefaultAccount() {
+  if (db.prepare('SELECT COUNT(*) AS count FROM accounts WHERE config_default = 1').get().count > 0) return
+  if (db.prepare('SELECT COUNT(*) AS count FROM accounts').get().count > 0) return
+  const configured = getConfiguredDefaultAccount()
+  if (!configured) return
+  const { source, secret } = configured
   const now = Date.now()
   const encrypted = encryptSecret(secret)
   db.prepare(`INSERT INTO accounts
-    (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, public_access, color, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, name, account, issuer, secret_ciphertext, secret_iv, digits, period, algorithm, notes, favorite, public_access, config_default, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(crypto.randomUUID(), source.name || '默认账号', source.account || '', source.issuer || '', encrypted.ciphertext, encrypted.iv,
       [6, 7, 8].includes(source.digits) ? source.digits : 6, [30, 60].includes(source.period) ? source.period : 30,
-      ['SHA1', 'SHA256', 'SHA512'].includes(source.algorithm) ? source.algorithm : 'SHA1', source.notes || '', source.favorite ? 1 : 0, source.publicAccess ? 1 : 0, source.color || '#287a5d', now, now)
+      ['SHA1', 'SHA256', 'SHA512'].includes(source.algorithm) ? source.algorithm : 'SHA1', source.notes || '', source.favorite ? 1 : 0, 1, 1, source.color || '#287a5d', now, now)
 }
 function validateAccount(body, requiresSecret = true) {
   const secret = normalizeSecret(body.secret)
@@ -211,6 +264,8 @@ function validateAccount(body, requiresSecret = true) {
   return { secret }
 }
 
+markLegacyConfiguredAccount()
+seedDefaultAccount()
 
 const app = express()
 app.use(cookieParser())
@@ -266,12 +321,11 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: serializeUser(req.user) }))
 
 app.get('/api/public/accounts', (_req, res) => {
-  const accounts = db.prepare('SELECT * FROM accounts WHERE public_access = 1 ORDER BY name COLLATE NOCASE ASC').all()
-  res.json({ accounts: accounts.map(serializePublicAccount) })
+  res.json({ accounts: getPublicAccounts().map(serializePublicAccount) })
 })
 
 app.get('/api/accounts', requireAuth, (req, res) => {
-  const accounts = db.prepare('SELECT * FROM accounts ORDER BY favorite DESC, name COLLATE NOCASE ASC').all()
+  const accounts = db.prepare('SELECT * FROM accounts WHERE config_default = 0 ORDER BY favorite DESC, name COLLATE NOCASE ASC').all()
   res.json({ accounts: accounts.map(serializeAccount) })
 })
 
