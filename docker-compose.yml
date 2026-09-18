@@ -12,6 +12,10 @@ services:
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?Set TOTP_ENCRYPTION_KEY in .env before starting KeyFort}
       DEFAULT_TOTP_SECRET: ${DEFAULT_TOTP_SECRET:-}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
+      # 设为 true 仅当前面有反向代理终止 HTTPS。明文 HTTP 部署下保持关闭，
+      # 否则 CSP 的 upgrade-insecure-requests 会把静态资源升级到 https,
+      # 浏览器随即报 ERR_SSL_PROTOCOL_ERROR。
+      FORCE_HTTPS: ${FORCE_HTTPS:-}
     volumes:
       - keyfort-data:/app/data
     healthcheck:

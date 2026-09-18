@@ -12,6 +12,14 @@ export function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
+// Cookies must only carry the Secure flag when the request actually arrived over
+// TLS: a production deployment reached over plain http would otherwise have every
+// session cookie silently dropped by the browser. `trust proxy` makes req.secure
+// honour X-Forwarded-Proto, so this covers both direct and reverse-proxied setups.
+export function isSecureRequest(req) {
+  return Boolean(req?.secure)
+}
+
 function requestIp(req) {
   return String(req.ip || req.socket?.remoteAddress || '').slice(0, 120)
 }
@@ -33,9 +41,9 @@ export function createSecurity({ db, dataDir, isProduction }) {
     return Buffer.concat([decipher.update(payload.subarray(0, -16)), decipher.final()]).toString('utf8')
   }
 
-  function setCsrfCookie(res) {
+  function setCsrfCookie(req, res) {
     const csrfToken = crypto.randomBytes(24).toString('base64url')
-    res.cookie(csrfCookie, csrfToken, { sameSite: 'lax', secure: isProduction, path: '/', httpOnly: false, maxAge: sessionDays * 24 * 60 * 60 * 1000 })
+    res.cookie(csrfCookie, csrfToken, { sameSite: 'lax', secure: isSecureRequest(req), path: '/', httpOnly: false, maxAge: sessionDays * 24 * 60 * 60 * 1000 })
     return csrfToken
   }
 
@@ -47,9 +55,9 @@ export function createSecurity({ db, dataDir, isProduction }) {
       (id, user_id, token_hash, expires_at, created_at, last_seen_at, ip, user_agent, verified_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(crypto.randomUUID(), userId, hashToken(token), expiresAt, now, now, requestIp(req), String(req.get('user-agent') || '').slice(0, 300), 0)
-    const common = { sameSite: 'lax', secure: isProduction, path: '/' }
+    const common = { sameSite: 'lax', secure: isSecureRequest(req), path: '/' }
     res.cookie(sessionCookie, token, { ...common, httpOnly: true, maxAge: expiresAt - now })
-    setCsrfCookie(res)
+    setCsrfCookie(req, res)
   }
 
   function getSession(req) {

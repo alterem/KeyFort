@@ -11,7 +11,7 @@ import { createAccountService } from './accounts.mjs'
 import { createAudit } from './audit.mjs'
 import { decryptBackup, encryptBackup } from './backup.mjs'
 import { openDatabase } from './database.mjs'
-import { createSecurity, csrfCookie, hashToken, sessionCookie } from './security.mjs'
+import { createSecurity, csrfCookie, hashToken, isSecureRequest, sessionCookie } from './security.mjs'
 import { createShareService } from './shares.mjs'
 import { accountSettings, normalizeSecret, validSecret } from './totp.mjs'
 
@@ -21,6 +21,8 @@ const dataDir = path.join(rootDir, 'data')
 const dbPath = process.env.DATABASE_PATH || path.join(dataDir, 'keyfort.db')
 const port = Number(process.env.PORT || 3001)
 const isProduction = process.env.NODE_ENV === 'production'
+const forceHttps = String(process.env.FORCE_HTTPS || '').toLowerCase() === 'true'
+
 const configPath = path.join(__dirname, 'config.json')
 const serverConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {}
 const db = openDatabase(dbPath)
@@ -93,8 +95,8 @@ function currentTokenHash(req) {
   return req.cookies[sessionCookie] ? hashToken(req.cookies[sessionCookie]) : ''
 }
 
-function clearAuth(res) {
-  const common = { sameSite: 'lax', secure: isProduction, path: '/' }
+function clearAuth(req, res) {
+  const common = { sameSite: 'lax', secure: isSecureRequest(req), path: '/' }
   res.clearCookie(sessionCookie, { ...common, httpOnly: true })
   res.clearCookie(csrfCookie, { ...common, httpOnly: false })
 }
@@ -117,7 +119,16 @@ seedDefault()
 
 const app = express()
 app.set('trust proxy', 1)
-app.use(helmet({ contentSecurityPolicy: isProduction ? undefined : false }))
+// `upgrade-insecure-requests` is part of helmet's default CSP. On a plain-HTTP
+// deployment it rewrites every asset URL to https and the browser then fails with
+// ERR_SSL_PROTOCOL_ERROR, because nothing is listening for TLS. KeyFort terminates
+// no TLS itself, so the directive is only meaningful once a proxy does. Set
+// FORCE_HTTPS=true behind one; cookies follow the real request scheme either way.
+app.use(helmet({
+  contentSecurityPolicy: isProduction
+    ? { directives: { 'upgrade-insecure-requests': forceHttps ? [] : null } }
+    : false,
+}))
 app.use(cookieParser())
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: false }))
@@ -150,7 +161,7 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/auth/status', (req, res) => {
   const user = security.getSession(req)
-  security.setCsrfCookie(res)
+  security.setCsrfCookie(req, res)
   res.json({ setupRequired: db.prepare('SELECT COUNT(*) AS count FROM users').get().count === 0, user: user ? serializeUser(user) : null })
 })
 
@@ -187,7 +198,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 app.post('/api/auth/logout', security.requireAuth, (req, res) => {
   db.prepare('DELETE FROM sessions WHERE id = ?').run(req.sessionId)
   audit.record(req, 'auth.logout', 'session', { id: req.sessionId })
-  clearAuth(res)
+  clearAuth(req, res)
   res.status(204).end()
 })
 
@@ -220,7 +231,7 @@ app.get('/api/auth/sessions', security.requireAuth, (req, res) => {
 app.delete('/api/auth/sessions/:id', security.requireAuth, (req, res) => {
   const result = db.prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id)
   if (!result.changes) return res.status(404).json({ message: '会话不存在' })
-  if (req.params.id === req.sessionId) clearAuth(res)
+  if (req.params.id === req.sessionId) clearAuth(req, res)
   audit.record(req, 'auth.session_revoked', 'session', { id: req.params.id })
   return res.status(204).end()
 })
