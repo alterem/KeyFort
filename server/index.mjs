@@ -155,7 +155,7 @@ const shareLimiter = rateLimit({ windowMs: 5 * 60 * 1000, limit: 60, standardHea
 app.get('/api/health', (_req, res) => {
   try {
     db.prepare('SELECT 1').get()
-    res.json({ status: 'ok', version: process.env.npm_package_version || '2.0.0', database: 'ok', encryption: 'ok', timestamp: Date.now() })
+    res.json({ status: 'ok', version: process.env.npm_package_version || '1.0.0', database: 'ok', encryption: 'ok', timestamp: Date.now() })
   } catch { res.status(503).json({ status: 'error', database: 'error' }) }
 })
 

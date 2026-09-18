@@ -144,11 +144,11 @@ ghcr.io/<github-owner>/keyfort:<tag>
 发布版本示例：
 
 ```bash
-git tag v2.0.0
-git push origin v2.0.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-版本标签包含 `-` 时，例如 `v2.1.0-beta.1`，GitHub Release 会自动标记为预发布版本。Release 页面会包含自动生成的变更说明、版本镜像拉取命令和对应提交哈希。
+版本标签包含 `-` 时，例如 `v1.1.0-beta.1`，GitHub Release 会自动标记为预发布版本。Release 页面会包含自动生成的变更说明、版本镜像拉取命令和对应提交哈希。
 
 Compose 文件只负责运行已经构建好的镜像。镜像构建由 GitHub Actions 或 Makefile 完成。
 

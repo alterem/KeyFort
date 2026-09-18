@@ -1,7 +1,7 @@
 {
   "name": "keyfort",
   "private": true,
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "面向团队的 TOTP 验证码共享管理器",
   "license": "MIT",
   "type": "module",
