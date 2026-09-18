@@ -200,6 +200,32 @@ NODE_ENV=production TOTP_ENCRYPTION_KEY="$(openssl rand -base64 32)" pnpm start
 
 生产环境建议使用 HTTPS，保护登录 Cookie 与团队数据传输。
 
+### HTTPS 与反向代理
+
+KeyFort 自身只监听明文 HTTP，TLS 由前面的 Nginx / Caddy 终止。代理需要透传 `X-Forwarded-Proto`，服务端据此决定登录 Cookie 是否带 `Secure` 标记：
+
+```nginx
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_pass http://127.0.0.1:3001;
+```
+
+确认代理就绪后再设置 `FORCE_HTTPS=true`，启用 CSP 的 `upgrade-insecure-requests`。
+
+**直接以明文 HTTP 访问时请勿开启 `FORCE_HTTPS`**：该指令会让浏览器把页面内所有静态资源升级为 `https://` 请求，而服务端并未监听 TLS，结果是页面白屏并在控制台报 `ERR_SSL_PROTOCOL_ERROR`。
+
+### 服务器时间同步
+
+TOTP 验证码由 `floor(UnixTime / period)` 推导，依赖服务器时钟的绝对准确度。时钟偏差超过一个周期（默认 30 秒）时，服务端算出的验证码会与手机等其他设备完全不同。
+
+注意 UnixTime 是 UTC 绝对秒数，**与时区无关**：设置 `TZ` 或挂载 `/etc/localtime` 只影响日志显示，不会修正验证码。容器也不维护独立时钟，读取的是宿主机内核时钟，因此需要在宿主机上校准：
+
+```bash
+timedatectl status              # 确认 System clock synchronized: yes
+sudo timedatectl set-ntp true   # 未启用时开启 NTP 同步
+```
+
+宿主机校准后容器立即生效，无需重启。云主机与虚拟机在休眠或迁移后容易出现漂移，建议长期开启 NTP。
+
 ## 项目检查
 
 ```bash

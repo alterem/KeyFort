@@ -1,3 +1,10 @@
+# 验证码与本地/其他设备对不上时，几乎总是宿主机时钟漂移，而不是本文件的问题。
+# TOTP 算的是 floor(UnixTime / period)，UnixTime 是 UTC 绝对秒数，与时区无关：
+# 容器不维护独立时钟，读的就是宿主机内核时钟，所以在这里加 TZ 或挂载
+# /etc/localtime 只会改变日志显示，不会修正验证码。请在宿主机上执行：
+#   timedatectl status          # 查看 System clock synchronized
+#   sudo timedatectl set-ntp true
+# 宿主机校准后容器立即生效，无需重启。
 services:
   keyfort:
     image: ${KEYFORT_IMAGE:-ghcr.io/alterem/keyfort:latest}
