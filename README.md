@@ -145,7 +145,7 @@ ghcr.io/<github-owner>/keyfort:<tag>
 
 ```bash
 node scripts/release.mjs patch --tag   # 同步版本号、提交并创建标签
-git push origin main v1.0.0
+git push origin main v1.0.1
 ```
 
 版本号以 `package.json` 为唯一事实来源，服务端在运行时读取它并通过 `/api/health` 上报。`scripts/release.mjs` 负责同步版本号并校验发布前提（semver 合法、不允许回退、工作区干净、标签未占用）：
