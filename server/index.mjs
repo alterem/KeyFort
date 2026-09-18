@@ -25,6 +25,10 @@ const forceHttps = String(process.env.FORCE_HTTPS || '').toLowerCase() === 'true
 
 const configPath = path.join(__dirname, 'config.json')
 const serverConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {}
+// package.json is the single source of truth for the version. Reading it directly
+// matters in Docker: the image starts `node server/index.mjs` without pnpm, so
+// npm_package_version is unset and a hardcoded fallback would silently go stale.
+const appVersion = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')).version
 const db = openDatabase(dbPath)
 const security = createSecurity({ db, dataDir, isProduction })
 const accounts = createAccountService({ db, encryptSecret: security.encryptText, decryptSecret: security.decryptText })
@@ -155,7 +159,7 @@ const shareLimiter = rateLimit({ windowMs: 5 * 60 * 1000, limit: 60, standardHea
 app.get('/api/health', (_req, res) => {
   try {
     db.prepare('SELECT 1').get()
-    res.json({ status: 'ok', version: process.env.npm_package_version || '1.0.0', database: 'ok', encryption: 'ok', timestamp: Date.now() })
+    res.json({ status: 'ok', version: appVersion, database: 'ok', encryption: 'ok', timestamp: Date.now() })
   } catch { res.status(503).json({ status: 'error', database: 'error' }) }
 })
 

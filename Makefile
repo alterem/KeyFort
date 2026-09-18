@@ -1,4 +1,4 @@
-.PHONY: help init up up-build down restart logs ps pull build shell backup destroy
+.PHONY: help init up up-build down restart logs ps pull build shell backup destroy release
 
 COMPOSE ?= docker compose
 IMAGE ?= ghcr.io/alterem/keyfort:latest
@@ -18,7 +18,15 @@ help:
 	  '  make pull       Pull IMAGE and start it' \
 	  '  make shell      Open a shell in the running container' \
 	  '  make backup     Export the SQLite data volume' \
-	  '  make destroy    Stop services and remove the data volume'
+	  '  make destroy    Stop services and remove the data volume' \
+	  '' \
+	  'Release:' \
+	  '  make release VERSION=1.0.1   Sync the version across the repo' \
+	  '  make release VERSION=patch TAG=1   Sync, commit and create the tag'
+
+release:
+	@test -n '$(VERSION)' || { echo 'Usage: make release VERSION=<x.y.z|patch|minor|major> [TAG=1]'; exit 1; }
+	node scripts/release.mjs $(VERSION) $(if $(TAG),--tag,)
 
 init:
 	@if [ -f .env ]; then \

@@ -144,9 +144,20 @@ ghcr.io/<github-owner>/keyfort:<tag>
 发布版本示例：
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+node scripts/release.mjs patch --tag   # 同步版本号、提交并创建标签
+git push origin main v1.0.0
 ```
+
+版本号以 `package.json` 为唯一事实来源，服务端在运行时读取它并通过 `/api/health` 上报。`scripts/release.mjs` 负责同步版本号并校验发布前提（semver 合法、不允许回退、工作区干净、标签未占用）：
+
+```bash
+node scripts/release.mjs 1.2.3          # 指定版本号
+node scripts/release.mjs minor          # 基于当前版本递增
+node scripts/release.mjs patch --dry-run  # 预览变更，不写入文件
+make release VERSION=patch TAG=1        # 等价的 Makefile 入口
+```
+
+推送标签会触发镜像构建、覆盖 `:latest` 并创建 GitHub Release，因此脚本不代为推送，需手动确认。
 
 版本标签包含 `-` 时，例如 `v1.1.0-beta.1`，GitHub Release 会自动标记为预发布版本。Release 页面会包含自动生成的变更说明、版本镜像拉取命令和对应提交哈希。
 
