@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Eye, EyeOff, Globe2, KeyRound } from 'lucide-react'
 import { normalizeSecret, parseOtpUri } from '../lib/totp'
 import { listMembers, type Member } from '../lib/api'
+import { randomId } from '../lib/utils'
 import type { Algorithm, TokenDigits, TokenPeriod, TotpAccount } from '../types'
 import { Button } from './ui/button'
 import { Dialog, DialogContent } from './ui/dialog'
@@ -28,7 +29,7 @@ interface AccountModalProps {
 function makeAccount(): TotpAccount {
   const now = Date.now()
   return {
-    id: crypto.randomUUID(),
+    id: randomId(),
     name: '',
     account: '',
     issuer: '',

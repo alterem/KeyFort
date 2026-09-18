@@ -43,6 +43,12 @@ export function ImportDialog({ onClose, onImported, onToast }: ImportDialogProps
       setCameraOpen(false)
       return
     }
+    // getUserMedia 同样只在安全上下文下暴露。不先行判断的话，局域网 http
+    // 访问时会落到下方的 catch，提示用户去检查根本没弹过的摄像头权限。
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setScanError('浏览器仅在 HTTPS 或 localhost 下开放摄像头，请改用上传二维码图片')
+      return
+    }
     setCameraOpen(true)
     window.setTimeout(async () => {
       if (!videoRef.current) return
